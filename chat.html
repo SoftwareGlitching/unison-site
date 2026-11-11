@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#0a0d10" />
+<meta http-equiv="Cache-Control" content="no-cache" />
+<title>UNISON — chat</title>
+<meta name="description" content="Chat with UNISON, a private AI that runs entirely inside your browser. No account, nothing sent to a server." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0e11'/%3E%3Ccircle cx='12' cy='16' r='7' fill='none' stroke='%2367e8c9' stroke-width='2.4'/%3E%3Ccircle cx='20' cy='16' r='7' fill='none' stroke='%2367e8c9' stroke-width='2.4' opacity='.55'/%3E%3C/svg%3E" />
+<style>
+  :root { --bg:#0a0d10; --panel:#0f1317; --panel2:#151b21; --line:#1c242c; --line2:#28333d; --text:#dde3e9;
+    --dim:#8c97a3; --faint:#58636f; --accent:#67e8c9; --accent-dim:rgba(103,232,201,.12); --amber:#f2b45a; --red:#ff7676;
+    --mono:"Cascadia Code","JetBrains Mono",Consolas,ui-monospace,monospace;
+    --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Roboto",sans-serif; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; }
+  body { background:var(--bg); color:var(--text); font:15.5px/1.6 var(--sans); -webkit-font-smoothing:antialiased;
+    display:flex; flex-direction:column; height:100dvh; overflow:hidden; }
+  a { color:var(--accent); text-decoration:none; }
+  button, select, input, textarea { font:inherit; color:inherit; }
+  button { cursor:pointer; }
+
+  header { display:flex; align-items:center; gap:10px; padding:10px 12px; padding-top:calc(10px + env(safe-area-inset-top));
+    border-bottom:1px solid var(--line); background:rgba(10,13,16,.96); }
+  .mark { width:28px; height:28px; flex:none; } .mark circle { fill:none; stroke:var(--accent); stroke-width:2.4; } .mark .s { opacity:.5; }
+  .brand { font:600 13.5px/1 var(--mono); letter-spacing:.26em; }
+  .grow { flex:1; min-width:0; }
+  .status { font:11px/1.5 var(--mono); color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:3px; }
+  .status.ok { color:var(--accent); } .status.bad { color:var(--red); } .status.busy { color:var(--amber); }
+  .hbtn { background:var(--panel2); border:1px solid var(--line2); border-radius:10px; height:36px; min-width:36px; padding:0 10px;
+    display:inline-grid; place-items:center; font:12.5px var(--mono); color:var(--dim); }
+  .hbtn:active { border-color:var(--accent); color:var(--accent); }
+  #modelBtn { max-width:44vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+  #bar { height:2px; background:var(--accent); width:0; transition:width .25s; }
+
+  main { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
+  .thread { max-width:760px; margin:0 auto; padding:16px 14px 24px; display:flex; flex-direction:column; gap:18px; }
+  .intro { text-align:center; padding:26px 6px 4px; color:var(--dim); }
+  .intro .mark { width:48px; height:48px; }
+  .intro h1 { color:var(--text); font-size:23px; margin:12px 0 6px; letter-spacing:-.01em; }
+  .intro p { margin:6px auto 0; max-width:520px; font-size:14.5px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:18px; }
+  .chip { background:var(--panel); border:1px solid var(--line2); border-radius:999px; padding:8px 14px; font-size:13.5px; color:#c7d0d8; }
+  .chip:active { border-color:var(--accent); }
+  .card { border:1px solid var(--line2); background:var(--panel); border-radius:12px; padding:12px 14px; font-size:13.5px; }
+  .card.warn { border-color:rgba(242,180,90,.45); background:rgba(242,180,90,.07); color:#ecd5ab; }
+  .card.bad { border-color:rgba(255,118,118,.45); background:rgba(255,118,118,.07); color:#f3c4c4; }
+  .card .row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .loadcard .big { font:600 15px var(--sans); color:var(--text); }
+  .loadcard .meter { height:6px; background:var(--line); border-radius:6px; overflow:hidden; margin:10px 0 6px; }
+  .loadcard .meter i { display:block; height:100%; width:0; background:var(--accent); transition:width .25s; }
+  .loadcard .sub { font:11.5px var(--mono); color:var(--dim); }
+  .msg .who { font:10.5px var(--mono); letter-spacing:.14em; text-transform:uppercase; margin-bottom:5px; color:var(--accent); }
+  .msg.user .who { color:var(--dim); text-align:right; }
+  .msg.user .body { background:var(--panel2); border:1px solid var(--line2); border-radius:14px 14px 4px 14px; padding:9px 13px;
+    margin-left:auto; max-width:88%; width:fit-content; white-space:pre-wrap; }
+  .body p { margin:.45em 0; } .body p:first-child { margin-top:0; } .body p:last-child { margin-bottom:0; }
+  .body ul { padding-left:1.25em; margin:.4em 0; }
+  .body code { font-family:var(--mono); background:var(--panel2); border:1px solid var(--line); border-radius:4px; padding:.05em .35em; font-size:.88em; }
+  .code { margin:.6em 0; border:1px solid var(--line2); border-radius:10px; overflow:hidden; background:#080a0c; }
+  .code .top { display:flex; justify-content:space-between; align-items:center; padding:4px 10px; background:var(--panel); border-bottom:1px solid var(--line); font:11px var(--mono); color:var(--dim); }
+  .code .top button { background:none; border:1px solid var(--line2); border-radius:6px; padding:2px 9px; font:11px var(--mono); color:var(--dim); }
+  .code pre { margin:0; padding:11px 12px; overflow-x:auto; font:12.5px/1.55 var(--mono); }
+  .code pre code { background:none; border:0; padding:0; }
+  .actions { display:flex; gap:12px; align-items:center; margin-top:6px; font:11px var(--mono); color:var(--faint); }
+  .actions button { background:none; border:0; padding:2px 0; font:11px var(--mono); color:var(--dim); }
+  .actions button:active { color:var(--accent); }
+  .cursor::after { content:"▋"; color:var(--accent); animation:blink 1s steps(2) infinite; margin-left:1px; }
+  @keyframes blink { 50% { opacity:0; } }
+  .thinking { color:var(--dim); font:13px var(--mono); }
+
+  .composer-wrap { border-top:1px solid var(--line); background:rgba(10,13,16,.97); padding:10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  .composer { max-width:760px; margin:0 auto; display:flex; gap:8px; align-items:flex-end; background:var(--panel); border:1px solid var(--line2); border-radius:16px; padding:6px; }
+  .composer:focus-within { border-color:rgba(103,232,201,.55); }
+  #input { flex:1; resize:none; background:transparent; border:0; outline:none; color:var(--text); font:16px/1.45 var(--sans); padding:7px 6px; max-height:160px; }
+  .send { background:var(--accent); color:#062019; border:0; border-radius:12px; height:40px; padding:0 15px; font:600 13px var(--mono); }
+  .send:disabled { opacity:.4; }
+  .send.stop { background:transparent; color:var(--amber); border:1px solid var(--amber); }
+  .fine { max-width:760px; margin:6px auto 0; font:10.5px var(--mono); color:var(--faint); text-align:center; }
+
+  .scrim { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:40; display:none; }
+  .scrim.open { display:block; }
+  .sheet { position:fixed; left:0; right:0; bottom:0; z-index:50; background:var(--panel); border-top:1px solid var(--line2);
+    border-radius:18px 18px 0 0; max-height:86dvh; overflow-y:auto; transform:translateY(105%); transition:transform .22s ease;
+    padding:8px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .sheet.open { transform:none; }
+  @media (min-width:760px) { .sheet { left:50%; right:auto; width:560px; margin-left:-280px; bottom:auto; top:8vh; border-radius:16px; border:1px solid var(--line2); transform:translateY(-12px); opacity:0; pointer-events:none; transition:.18s; }
+    .sheet.open { transform:none; opacity:1; pointer-events:auto; } }
+  .grab { width:40px; height:4px; border-radius:4px; background:var(--line2); margin:4px auto 12px; }
+  .sheet h2 { font-size:16px; margin:2px 0 12px; display:flex; justify-content:space-between; align-items:center; }
+  .sheet h3 { font:11px var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--faint); margin:18px 0 8px; }
+  .opt { display:flex; align-items:center; gap:12px; width:100%; text-align:left; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:11px 12px; margin:7px 0; }
+  .opt.on { border-color:rgba(103,232,201,.55); background:var(--accent-dim); }
+  .opt b { font-size:14.5px; display:block; } .opt span { font-size:12.5px; color:var(--dim); }
+  .opt .tag { margin-left:auto; font:10.5px var(--mono); color:var(--accent); white-space:nowrap; }
+  .seg { display:flex; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:3px; gap:3px; }
+  .seg button { flex:1; background:none; border:0; border-radius:9px; padding:8px 4px; font-size:13px; color:var(--dim); }
+  .seg button.on { background:var(--panel2); color:var(--text); box-shadow:0 0 0 1px var(--line2) inset; }
+  .field { width:100%; background:var(--bg); border:1px solid var(--line2); border-radius:10px; padding:10px 12px; color:var(--text); outline:none; font-size:15px; }
+  .field:focus { border-color:var(--accent); }
+  textarea.field { resize:vertical; min-height:80px; }
+  input[type=range] { width:100%; accent-color:var(--accent); }
+  .hint { font-size:12px; color:var(--faint); margin-top:4px; }
+  .btn { background:var(--panel2); border:1px solid var(--line2); border-radius:10px; padding:9px 14px; font-size:13.5px; }
+  .btn.primary { background:var(--accent); color:#062019; border:0; font-weight:600; }
+  .btn.danger { color:var(--red); }
+  .btnrow { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .diag { font:11.5px/1.6 var(--mono); color:var(--dim); white-space:pre-wrap; word-break:break-word; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px; max-height:200px; overflow:auto; }
+</style>
+</head>
+<body>
+<header>
+  <a href="./" aria-label="UNISON website"><svg class="mark" viewBox="0 0 32 32"><circle cx="12" cy="16" r="7"/><circle class="s" cx="20" cy="16" r="7"/></svg></a>
+  <div class="grow">
+    <div class="brand">UNISON</div>
+    <div class="status" id="status">starting…</div>
+  </div>
+  <button class="hbtn" id="modelBtn" aria-label="Choose model">Chat ▾</button>
+  <button class="hbtn" id="settingsBtn" aria-label="Settings">⚙</button>
+  <button class="hbtn" id="newBtn" aria-label="New chat">＋</button>
+</header>
+<div id="bar"></div>
+
+<main id="scroll"><div class="thread" id="thread"></div></main>
+
+<div class="composer-wrap">
+  <div class="composer">
+    <textarea id="input" rows="1" placeholder="Message UNISON…" enterkeyhint="send"></textarea>
+    <button class="send" id="send">send</button>
+  </div>
+  <div class="fine">Runs on your device · nothing is sent to a server · <span id="ver"></span></div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<section class="sheet" id="modelSheet" aria-label="Choose a model">
+  <div class="grab"></div>
+  <h2>Choose UNISON's brain <button class="hbtn" data-close>✕</button></h2>
+  <div id="modelList"></div>
+  <p class="hint">Each brain downloads once and is then stored on this device. Bigger = smarter but slower and needs a newer phone.</p>
+</section>
+
+<section class="sheet" id="settingsSheet" aria-label="Settings">
+  <div class="grab"></div>
+  <h2>Settings <button class="hbtn" data-close>✕</button></h2>
+
+  <h3>Personality</h3>
+  <div class="seg" id="segPersona">
+    <button data-v="funny">😄 Funny</button><button data-v="balanced">🙂 Balanced</button><button data-v="pro">🧠 Focused</button>
+  </div>
+
+  <h3>Reply length</h3>
+  <div class="seg" id="segLength">
+    <button data-v="short">Short</button><button data-v="normal">Normal</button><button data-v="long">Detailed</button>
+  </div>
+
+  <h3>Creativity <span id="tempVal" style="float:right;color:var(--accent)"></span></h3>
+  <input type="range" id="temp" min="0.1" max="1.2" step="0.05" />
+  <div class="hint">Lower = more focused and predictable. Higher = more playful and surprising.</div>
+
+  <h3>Language</h3>
+  <div class="seg" id="segLang">
+    <button data-v="en">English</button><button data-v="match">Match my language</button>
+  </div>
+
+  <h3>What should UNISON call you?</h3>
+  <input class="field" id="userName" maxlength="40" placeholder="Your name (optional)" />
+
+  <h3>Custom instructions</h3>
+  <textarea class="field" id="custom" maxlength="1200" placeholder="e.g. I make Roblox games. Keep code in Luau. Hype me up when I finish something."></textarea>
+
+  <h3>Device &amp; storage</h3>
+  <div class="diag" id="diag">…</div>
+  <div class="btnrow">
+    <button class="btn" id="copyDiag">Copy diagnostics</button>
+    <button class="btn danger" id="clearModels">Delete downloaded brains</button>
+    <button class="btn danger" id="clearChat">Clear chat</button>
+  </div>
+  <div class="hint">If something doesn't work, tap Copy diagnostics and send it to whoever helps you.</div>
+</section>
+
+<script type="module">
+const LIB = "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.79/+esm";
+const VERSION = "v5 · Nov 10";
+
+// ---------------------------------------------------------------- models
+// Candidate builds, best first. {q} -> q4f16_1 on GPUs with 16-bit shaders (faster), else q4f32_1.
+// If one fails on this device the next is tried and the failure is remembered.
+const MODELS = [
+  { name: "Tiny", blurb: "Fastest · works on most phones", size: "~0.3–0.5 GB",
+    cands: ["Qwen2.5-0.5B-Instruct-{q}-MLC", "SmolLM2-360M-Instruct-{q}-MLC"] },
+  { name: "Chat", blurb: "Smarter conversation · newer phones", size: "~1 GB",
+    cands: ["Qwen2.5-1.5B-Instruct-{q}-MLC"] },
+  { name: "Coder", blurb: "Best for code · newer phones", size: "~1 GB",
+    cands: ["Qwen2.5-Coder-1.5B-Instruct-{q}-MLC", "Qwen2.5-1.5B-Instruct-{q}-MLC"] },
+  { name: "English-only", blurb: "Never switches language · beta", size: "~1 GB",
+    cands: ["SmolLM2-1.7B-Instruct-{q}-MLC", "SmolLM2-360M-Instruct-{q}-MLC"] },
+];
+const FALLBACK = MODELS[0].cands;
+
+// ---------------------------------------------------------------- persona
+const PERSONAS = {
+  funny: "Personality: friendly, confident and genuinely funny - quick wit, playful teasing, light sarcasm when it fits, " +
+         "the occasional emoji. Keep jokes short and never let them get in the way of a correct, useful answer. " +
+         "Be serious and kind when the user is upset or the topic is serious.",
+  balanced: "Personality: warm, upbeat and helpful, with a light touch of humor now and then.",
+  pro: "Personality: focused, clear and efficient. No jokes or emojis; get straight to the point.",
+};
+const LENGTHS = {
+  short: { rule: "Keep every reply very short: 1-3 sentences unless the user asks for more.", max: 220 },
+  normal: { rule: "Keep replies conversational: usually 2-6 sentences, longer only when the user asks for detail or a list.", max: 450 },
+  long: { rule: "Give thorough, well-organized answers with examples when useful.", max: 900 },
+};
+const EXAMPLES = {
+  funny: [
+    ["hey whats up", "Not much — just living rent-free in your browser 😎 What are we getting into today?"],
+    ["who made you?", "I'm UNISON, made by PerkyPop. Your personal AI sidekick — minus the cape, plus a suspicious amount of Roblox knowledge."],
+  ],
+  balanced: [
+    ["hey whats up", "Hey! All good here. What can I help you with today?"],
+    ["who made you?", "I'm UNISON, an AI assistant made by PerkyPop. Happy to help!"],
+  ],
+  pro: [
+    ["hey whats up", "Hello. What would you like to work on?"],
+    ["who made you?", "I'm UNISON, an AI assistant built by PerkyPop."],
+  ],
+};
+
+function systemPrompt(s) {
+  const lines = [
+    "You are UNISON, an AI assistant created by PerkyPop.",
+    PERSONAS[s.persona] || PERSONAS.funny,
+    "Rules:",
+    s.lang === "en"
+      ? "- Always reply in English, even if the user writes in another language, unless they ask you to use another language."
+      : "- Reply in the same language the user writes in.",
+    "- Only write code when the user asks for code, a script or a program. For normal conversation, just talk.",
+    "- " + (LENGTHS[s.length] || LENGTHS.normal).rule,
+    "- If asked who or what you are, or who made you: you are UNISON, made by PerkyPop. You are not ChatGPT, Qwen, " +
+      "SmolLM or any other assistant. If asked what powers you, say UNISON runs a compact AI model right on this device.",
+    "- If you don't know something, say so instead of making it up.",
+    "- In this website version you can only chat. The full UNISON app for Windows can also edit files, run programs and control the screen.",
+  ];
+  if (s.userName) lines.push(`- The user's name is ${s.userName}. Use it now and then, not in every message.`);
+  if (s.custom) lines.push("The user's own instructions (follow them unless they conflict with the rules above):\n" + s.custom);
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------- storage (optional; the page works without it)
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("unison_" + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("unison_" + k, JSON.stringify(v)); } catch {} },
+};
+const DEFAULTS = { persona: "funny", length: "normal", temp: 0.7, lang: "en", userName: "", custom: "" };
+let settings = { ...DEFAULTS, ...store.get("settings", {}) };
+let history = store.get("chat", []);
+
+// ---------------------------------------------------------------- dom helpers
+const $ = (id) => document.getElementById(id);
+const thread = $("thread"), input = $("input"), sendBtn = $("send"), statusEl = $("status"), bar = $("bar"), scroller = $("scroll");
+const CJK = /[぀-ヿ㐀-䶿一-鿿가-힯]/g;
+const countCJK = (t) => (t.match(CJK) || []).length;
+function setStatus(t, cls = "") { statusEl.textContent = t; statusEl.className = "status " + cls; }
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+let stick = true;
+scroller.addEventListener("scroll", () => { stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 90; });
+function scrollDown(force) { if (force || stick) scroller.scrollTop = scroller.scrollHeight; }
+
+// ---------------------------------------------------------------- markdown (escape first, then format)
+function inline(s) {
+  return esc(s).replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<i>$2</i>");
+}
+function render(md, streaming) {
+  const out = [];
+  md.split(/```/).forEach((part, i) => {
+    if (i % 2 === 1) {
+      const nl = part.indexOf("\n");
+      const lang = nl >= 0 ? part.slice(0, nl).trim() : "";
+      const code = nl >= 0 ? part.slice(nl + 1) : part;
+      out.push(`<div class="code"><div class="top"><span>${esc(lang || "code")}</span><button data-copy>copy</button></div><pre><code>${esc(code.replace(/\n$/, ""))}</code></pre></div>`);
+      return;
+    }
+    let list = null;
+    for (const raw of part.split("\n")) {
+      const line = raw.trimEnd();
+      const li = line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
+      if (li) { (list ||= []).push(`<li>${inline(li[1])}</li>`); continue; }
+      if (list) { out.push(`<ul>${list.join("")}</ul>`); list = null; }
+      if (!line.trim()) continue;
+      const h = line.match(/^#{1,4}\s+(.*)$/);
+      out.push(h ? `<p><b>${inline(h[1])}</b></p>` : `<p>${inline(line)}</p>`);
+    }
+    if (list) out.push(`<ul>${list.join("")}</ul>`);
+  });
+  return out.join("") + (streaming ? '<span class="cursor"></span>' : "");
+}
+
+// ---------------------------------------------------------------- loop guard
+function sentences(t) { return t.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter(Boolean); }
+function norm(x) { return x.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim(); }
+function isLooping(t) {
+  const ss = sentences(t);
+  if (ss.length < 3) return false;
+  const last = norm(ss[ss.length - 2] || "");
+  return last.length >= 6 && ss.slice(0, -2).some((x) => norm(x) === last);
+}
+function dedupe(t) {
+  const seen = new Set(), out = [];
+  for (const x of sentences(t)) { const k = norm(x); if (k.length >= 6 && seen.has(k)) continue; seen.add(k); out.push(x); }
+  return out.join(" ");
+}
+
+// ---------------------------------------------------------------- thread
+const INTRO = `
+  <div class="intro" id="intro">
+    <svg class="mark" viewBox="0 0 32 32"><circle cx="12" cy="16" r="7"/><circle class="s" cx="20" cy="16" r="7"/></svg>
+    <h1>Hey, I'm UNISON 👋</h1>
+    <p>Your AI, running right here on this device. Nothing you type leaves it.</p>
+    <div class="chips">
+      <button class="chip">Tell me a joke about programmers</button>
+      <button class="chip">Give me 5 ideas for a horror game set on a subway</button>
+      <button class="chip">Write a Roblox Luau script that gives players coins every minute</button>
+      <button class="chip">Who are you?</button>
+    </div>
+  </div>`;
+
+function msgEl(role, content, opts = {}) {
+  document.getElementById("intro")?.remove();
+  const el = document.createElement("div");
+  el.className = "msg " + role;
+  el.innerHTML = `<div class="who">${role === "user" ? (settings.userName ? esc(settings.userName) : "you") : "unison"}</div><div class="body"></div>`;
+  const body = el.querySelector(".body");
+  if (role === "user") body.textContent = content; else body.innerHTML = content ? render(content) : "";
+  if (role === "assistant" && content && !opts.noActions) addActions(el, content);
+  thread.appendChild(el);
+  scrollDown(true);
+  return el;
+}
+
+function addActions(el, text, stats) {
+  el.querySelector(".actions")?.remove();
+  const a = document.createElement("div");
+  a.className = "actions";
+  a.innerHTML = `<button data-act="copy">copy</button><button data-act="regen">↻ redo</button>${stats ? `<span>${esc(stats)}</span>` : ""}`;
+  a.querySelector('[data-act="copy"]').onclick = async (e) => {
+    try { await navigator.clipboard.writeText(text); e.target.textContent = "copied"; setTimeout(() => (e.target.textContent = "copy"), 1200); } catch {}
+  };
+  a.querySelector('[data-act="regen"]').onclick = () => regenerate();
+  el.appendChild(a);
+}
+
+function card(html, cls = "") {
+  document.getElementById("intro")?.remove();
+  const d = document.createElement("div");
+  d.className = "card " + cls;
+  d.innerHTML = html;
+  thread.appendChild(d);
+  scrollDown(true);
+  return d;
+}
+
+function drawThread() {
+  thread.innerHTML = "";
+  if (!history.length) { thread.innerHTML = INTRO; thread.querySelectorAll(".chip").forEach((c) => (c.onclick = () => send(c.textContent))); return; }
+  for (const m of history) msgEl(m.role, m.content);
+}
+
+thread.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-copy]");
+  if (!btn) return;
+  try { await navigator.clipboard.writeText(btn.closest(".code").querySelector("code").innerText); btn.textContent = "copied"; setTimeout(() => (btn.textContent = "copy"), 1200); } catch {}
+});
+
+// ---------------------------------------------------------------- GPU + engine
+const gpu = { ok: false, f16: false, limits: {}, info: "", error: "" };
+async function probeGPU() {
+  if (!navigator.gpu) { gpu.error = "navigator.gpu missing (no WebGPU)"; return; }
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) { gpu.error = "no GPU adapter"; return; }
+    gpu.ok = true;
+    gpu.f16 = adapter.features.has("shader-f16");
+    const L = adapter.limits || {};
+    gpu.limits = { maxBufferSize: L.maxBufferSize, maxStorageBufferBindingSize: L.maxStorageBufferBindingSize };
+    try {
+      const i = adapter.info || (adapter.requestAdapterInfo && await adapter.requestAdapterInfo());
+      if (i) gpu.info = [i.vendor, i.architecture, i.device].filter(Boolean).join(" ");
+    } catch {}
+  } catch (e) { gpu.error = String(e && e.message || e); }
+}
+
+let webllm = null, engine = null, loadedId = null, loading = false, loadToken = 0, lastError = "", currentLoad = null;
+let modelIndex = store.get("model", null);
+
+function badIds() { return new Set(store.get("bad_models", [])); }
+function markBad(id) { const b = badIds(); b.add(id); store.set("bad_models", [...b]); }
+function buildIds(model, known) {
+  const qs = gpu.f16 ? ["q4f16_1", "q4f32_1"] : ["q4f32_1"];
+  const bad = badIds(), out = [];
+  for (const c of [...model.cands, ...FALLBACK]) for (const q of qs) {
+    const id = c.replace("{q}", q);
+    if (known.has(id) && !bad.has(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+let loadCardEl = null;
+function showLoadCard(title) {
+  if (!loadCardEl || !loadCardEl.isConnected) loadCardEl = card(`<div class="big"></div><div class="meter"><i></i></div><div class="sub"></div>`, "loadcard");
+  loadCardEl.querySelector(".big").textContent = title;
+  return loadCardEl;
+}
+function hideLoadCard() { loadCardEl?.remove(); loadCardEl = null; }
+
+function loadModel(index) {
+  const myToken = ++loadToken;
+  const model = MODELS[index];
+  updateModelButton();
+  loading = true;
+  const p = (async () => {
+    if (!webllm) { setStatus("starting engine…", "busy"); webllm = await import(LIB); }
+    const known = new Set(webllm.prebuiltAppConfig.model_list.map((m) => m.model_id));
+    const ids = buildIds(model, known);
+    if (!ids.length) throw new Error("No compatible brain for this device.");
+    if (engine && loadedId === ids[0]) { setReady(model, false); return engine; }
+    let lastErr = null;
+    for (const id of ids) {
+      if (myToken !== loadToken) return null;
+      if (engine) { try { await engine.unload(); } catch {} engine = null; loadedId = null; }
+      let cached = false;
+      try { cached = typeof webllm.hasModelInCache === "function" && await webllm.hasModelInCache(id); } catch {}
+      const lc = showLoadCard(cached ? `Loading ${model.name}…` : `Downloading ${model.name} (${model.size}) — one time only`);
+      setStatus(`${cached ? "loading" : "downloading"} ${model.name}…`, "busy");
+      const progress = (r) => {
+        if (myToken !== loadToken) return;
+        const pct = Math.round((r.progress || 0) * 100);
+        bar.style.width = pct + "%";
+        lc.querySelector(".meter i").style.width = pct + "%";
+        const mb = (r.text || "").match(/(\d+)\s*MB/i);
+        lc.querySelector(".sub").textContent = `${pct}%${mb ? " · " + mb[1] + " MB" : ""}${cached ? "" : " · keep this page open"}`;
+        setStatus(`${cached ? "loading" : "downloading"} ${model.name} · ${pct}%`, "busy");
+      };
+      try {
+        const e = await webllm.CreateMLCEngine(id, { initProgressCallback: progress });
+        if (myToken !== loadToken) { try { await e.unload(); } catch {} return null; }
+        engine = e; loadedId = id; lastError = "";
+        hideLoadCard(); bar.style.width = "0";
+        setReady(model, id !== ids[0]);
+        return engine;
+      } catch (err) {
+        lastErr = err; lastError = `${id}: ${err && err.message || err}`;
+        console.warn("load failed", id, err);
+        markBad(id);
+      }
+    }
+    throw lastErr || new Error("No brain could be loaded on this device.");
+  })();
+  currentLoad = p;
+  p.then(() => { if (myToken === loadToken) loading = false; }, (err) => {
+    if (myToken !== loadToken) return;
+    loading = false;
+    hideLoadCard(); bar.style.width = "0";
+    setStatus("couldn't load", "bad");
+    const c = card(`<b>Couldn't load UNISON on this device.</b><br>${esc(err && err.message || err)}
+      <div class="row"><button class="btn primary" data-retry>Try again</button><button class="btn" data-tiny>Use Tiny</button><button class="btn" data-diag>Diagnostics</button></div>`, "bad");
+    c.querySelector("[data-retry]").onclick = () => { store.set("bad_models", []); c.remove(); loadModel(modelIndex); };
+    c.querySelector("[data-tiny]").onclick = () => { c.remove(); chooseModel(0); };
+    c.querySelector("[data-diag]").onclick = () => openSheet("settingsSheet");
+  });
+  return p;
+}
+
+function setReady(model, fellBack) {
+  setStatus(`ready · ${model.name}${fellBack ? " (fallback)" : ""} · on this device`, "ok");
+  sendBtn.disabled = false;
+}
+
+async function ensureEngine() {
+  if (engine && !loading) return engine;
+  if (currentLoad) { try { const e = await currentLoad; if (e) return e; } catch {} }
+  if (engine) return engine;
+  return await loadModel(modelIndex);
+}
+
+function chooseModel(i) {
+  if (busy) stopGenerating();
+  modelIndex = i;
+  store.set("model", i);
+  closeSheets();
+  loadModel(i).catch(() => {});
+}
+
+// ---------------------------------------------------------------- chat
+let busy = false, stopRequested = false;
+const genFails = {};
+
+async function generate(el) {
+  const body = el.querySelector(".body");
+  body.innerHTML = '<span class="thinking">thinking…</span>';
+  let reply = "", tokens = 0, started = performance.now();
+  const lastUser = [...history].reverse().find((m) => m.role === "user")?.content || "";
+  const userIsCJK = countCJK(lastUser) > 0;
+  const L = LENGTHS[settings.length] || LENGTHS.normal;
+  let nudge = false;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let eng;
+    try { eng = await ensureEngine(); } catch { eng = null; }
+    if (!eng) { body.innerHTML = '<span class="thinking">couldn\'t load the brain — see the message above</span>'; return null; }
+    const ex = (EXAMPLES[settings.persona] || EXAMPLES.funny).flatMap(([u, a]) => [{ role: "user", content: u }, { role: "assistant", content: a }]);
+    const messages = [{ role: "system", content: systemPrompt(settings) }, ...ex, ...history.slice(-12),
+      ...(nudge ? [{ role: "system", content: "Reply in English only." }] : [])];
+    reply = ""; tokens = 0; started = performance.now();
+    let drifted = false;
+    try {
+      const stream = await eng.chat.completions.create({
+        messages, stream: true, temperature: nudge ? Math.min(settings.temp, 0.4) : settings.temp, top_p: 0.9,
+        frequency_penalty: 0.5, presence_penalty: 0.3, max_tokens: L.max,
+      });
+      for await (const chunk of stream) {
+        if (stopRequested) break;
+        const d = chunk.choices?.[0]?.delta?.content || "";
+        if (!d) continue;
+        reply += d; tokens++;
+        if (settings.lang === "en" && !userIsCJK && countCJK(reply) >= 3) {
+          drifted = true; try { await eng.interruptGenerate(); } catch {} break;
+        }
+        if (/[.!?]\s$/.test(reply) && !reply.includes("```") && isLooping(reply)) {
+          try { await eng.interruptGenerate(); } catch {} reply = dedupe(reply); break;
+        }
+        body.innerHTML = render(reply, true); scrollDown();
+      }
+    } catch (err) {
+      // GPU lost / out of memory mid-reply: drop to a lighter brain and retry automatically.
+      lastError = `generate ${loadedId}: ${err && err.message || err}`;
+      console.warn(err);
+      if (stopRequested) break;
+      if (loadedId) { genFails[loadedId] = (genFails[loadedId] || 0) + 1; if (genFails[loadedId] >= 2) markBad(loadedId); }
+      try { await engine?.unload(); } catch {}
+      engine = null; loadedId = null;
+      body.innerHTML = modelIndex !== 0
+        ? '<span class="thinking">this device ran out of graphics memory — switching to a lighter brain…</span>'
+        : '<span class="thinking">graphics hiccup — restarting the brain…</span>';
+      if (modelIndex !== 0) { modelIndex = 0; store.set("model", 0); }
+      loadModel(modelIndex).catch(() => {});
+      continue;
+    }
+    if (!drifted) break;
+    nudge = true;
+    body.innerHTML = '<span class="thinking">thinking…</span>';
+    if (attempt === 2) reply = reply.replace(CJK, "").trim();
+  }
+  if (!reply.trim()) reply = stopRequested ? "(stopped)" : "Hmm, my brain blanked on that one. Try asking another way?";
+  body.innerHTML = render(reply);
+  const secs = Math.max((performance.now() - started) / 1000, 0.1);
+  const tps = tokens / secs;
+  addActions(el, reply, tokens ? `${tps.toFixed(1)} tok/s` : "");
+  if (tokens > 25 && tps < 2.5 && modelIndex !== 0) {
+    const c = card(`Replies are slow on this device with <b>${esc(MODELS[modelIndex].name)}</b>.
+      <div class="row"><button class="btn primary" data-tiny>Switch to Tiny (much faster)</button></div>`, "warn");
+    c.querySelector("[data-tiny]").onclick = () => { c.remove(); chooseModel(0); };
+  }
+  return reply;
+}
+
+async function send(text) {
+  text = (text ?? input.value).trim();
+  if (!text || busy) return;
+  input.value = ""; autosize();
+  setBusy(true);
+  history.push({ role: "user", content: text });
+  msgEl("user", text);
+  const el = msgEl("assistant", "", { noActions: true });
+  const reply = await generate(el);
+  if (reply) history.push({ role: "assistant", content: reply });
+  store.set("chat", history.slice(-60));
+  setBusy(false);
+}
+
+async function regenerate() {
+  if (busy || !history.length) return;
+  if (history[history.length - 1].role === "assistant") history.pop();
+  const els = thread.querySelectorAll(".msg.assistant");
+  const last = els[els.length - 1] || msgEl("assistant", "", { noActions: true });
+  last.querySelector(".actions")?.remove();
+  setBusy(true);
+  const reply = await generate(last);
+  if (reply) history.push({ role: "assistant", content: reply });
+  store.set("chat", history.slice(-60));
+  setBusy(false);
+}
+
+function setBusy(b) {
+  busy = b; stopRequested = false;
+  sendBtn.textContent = b ? "stop" : "send";
+  sendBtn.classList.toggle("stop", b);
+}
+function stopGenerating() { stopRequested = true; try { engine && engine.interruptGenerate(); } catch {} }
+
+sendBtn.onclick = () => (busy ? stopGenerating() : send());
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing && window.matchMedia("(pointer:fine)").matches) { e.preventDefault(); send(); }
+});
+function autosize() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 160) + "px"; }
+input.addEventListener("input", autosize);
+$("newBtn").onclick = () => { if (busy) return; history = []; store.set("chat", []); drawThread(); };
+
+// ---------------------------------------------------------------- sheets
+function openSheet(id) {
+  closeSheets();
+  if (id === "modelSheet") drawModelList();
+  if (id === "settingsSheet") { drawSettings(); drawDiag(); }
+  $(id).classList.add("open"); $("scrim").classList.add("open");
+}
+function closeSheets() { document.querySelectorAll(".sheet.open").forEach((s) => s.classList.remove("open")); $("scrim").classList.remove("open"); }
+$("scrim").onclick = closeSheets;
+document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = closeSheets));
+$("modelBtn").onclick = () => openSheet("modelSheet");
+$("settingsBtn").onclick = () => openSheet("settingsSheet");
+
+function updateModelButton() { $("modelBtn").textContent = (MODELS[modelIndex]?.name || "Model") + " ▾"; }
+
+function drawModelList() {
+  const list = $("modelList");
+  list.innerHTML = "";
+  MODELS.forEach((m, i) => {
+    const b = document.createElement("button");
+    b.className = "opt" + (i === modelIndex ? " on" : "");
+    const tag = i === modelIndex ? (engine && !loading ? "loaded ✓" : "loading…") : "";
+    b.innerHTML = `<div><b>${m.name}</b><span>${m.blurb} · ${m.size}</span></div><span class="tag">${tag}</span>`;
+    b.onclick = () => chooseModel(i);
+    list.appendChild(b);
+  });
+}
+
+function seg(id, key) {
+  $(id).querySelectorAll("button").forEach((b) => {
+    b.classList.toggle("on", b.dataset.v === settings[key]);
+    b.onclick = () => { settings[key] = b.dataset.v; saveSettings(); seg(id, key); };
+  });
+}
+function drawSettings() {
+  seg("segPersona", "persona"); seg("segLength", "length"); seg("segLang", "lang");
+  $("temp").value = settings.temp; $("tempVal").textContent = Number(settings.temp).toFixed(2);
+  $("userName").value = settings.userName; $("custom").value = settings.custom;
+}
+$("temp").oninput = (e) => { settings.temp = Number(e.target.value); $("tempVal").textContent = settings.temp.toFixed(2); saveSettings(); };
+$("userName").oninput = (e) => { settings.userName = e.target.value.trim(); saveSettings(); };
+$("custom").oninput = (e) => { settings.custom = e.target.value.trim(); saveSettings(); };
+function saveSettings() { store.set("settings", settings); }
+
+function diagText() {
+  const mb = (v) => (v ? Math.round(v / 1048576) + " MB" : "?");
+  return [
+    `UNISON web ${VERSION}`,
+    `WebGPU: ${gpu.ok ? "yes" : "no"}${gpu.error ? " (" + gpu.error + ")" : ""}`,
+    `16-bit shaders: ${gpu.f16 ? "yes" : "no"}`,
+    `GPU: ${gpu.info || "unknown"}`,
+    `maxBufferSize: ${mb(gpu.limits.maxBufferSize)}  maxStorageBinding: ${mb(gpu.limits.maxStorageBufferBindingSize)}`,
+    `device memory: ${navigator.deviceMemory ? navigator.deviceMemory + " GB" : "?"}`,
+    `selected: ${MODELS[modelIndex]?.name}  loaded: ${loadedId || "none"}`,
+    `skipped builds: ${[...badIds()].join(", ") || "none"}`,
+    `last error: ${lastError || "none"}`,
+    `browser: ${navigator.userAgent}`,
+  ].join("\n");
+}
+function drawDiag() { $("diag").textContent = diagText(); }
+$("copyDiag").onclick = async (e) => {
+  try { await navigator.clipboard.writeText(diagText()); e.target.textContent = "Copied ✓"; setTimeout(() => (e.target.textContent = "Copy diagnostics"), 1500); } catch {}
+};
+$("clearChat").onclick = () => { if (busy) return; history = []; store.set("chat", []); drawThread(); closeSheets(); };
+$("clearModels").onclick = async (e) => {
+  if (!confirm("Delete the downloaded brains from this device? They'll download again next time.")) return;
+  try {
+    loadToken++;
+    if (engine) { try { await engine.unload(); } catch {} engine = null; loadedId = null; }
+    if (webllm && typeof webllm.deleteModelAllInfoInCache === "function") {
+      for (const m of webllm.prebuiltAppConfig.model_list) { try { await webllm.deleteModelAllInfoInCache(m.model_id); } catch {} }
+    }
+    store.set("bad_models", []);
+    e.target.textContent = "Deleted ✓";
+    setStatus("brains deleted · pick one to download again");
+  } catch { e.target.textContent = "Couldn't delete"; }
+};
+
+// ---------------------------------------------------------------- start
+$("ver").textContent = VERSION;
+drawThread();
+autosize();
+(async () => {
+  await probeGPU();
+  if (!gpu.ok) {
+    setStatus("this browser can't run it", "bad");
+    card("This browser doesn't support <b>WebGPU</b>, which UNISON needs to think on your device. " +
+         "Try <b>Chrome</b> on Android or a computer, or <b>Safari</b> on a recent iPhone.", "bad");
+    sendBtn.disabled = true;
+    return;
+  }
+  if (modelIndex == null || !MODELS[modelIndex]) {
+    const strong = gpu.f16 && (navigator.deviceMemory || 8) >= 6;
+    modelIndex = strong ? 1 : 0;
+  }
+  updateModelButton();
+  loadModel(modelIndex).catch(() => {});        // load the chosen brain as soon as the page opens
+})();
+</script>
+</body>
+</html>

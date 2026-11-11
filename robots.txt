@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://softwareglitching.github.io/unison-site/sitemap.xml

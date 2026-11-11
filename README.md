@@ -13,7 +13,7 @@ A private AI that runs on your own Windows PC. UNISON is the platform — runtim
 tools, screen control and training — wrapped around an open-weight model that runs locally through
 Ollama. No cloud APIs, no API keys needed to chat, no telemetry.
 
-**Current build: v0.6 — license keys, a browser chat for phones, a public link for using UNISON from any
+**Current build: v0.6.1 — the browser chat can use your PC's full model through the public link; v0.6 — license keys, a browser chat for phones, a public link for using UNISON from any
 browser (e.g. at work), and stronger remote-access protection.** Earlier: v0.5 sign-in + download site,
 v0.4 jobs + remote access, v0.3 screen control.
 
@@ -28,6 +28,12 @@ v0.4 jobs + remote access, v0.3 screen control.
 | Unlock | Your license key | The same license key |
 
 Nothing you type is sent to a server in either version.
+
+**Use your PC's full model from the website:** on the PC, run `Enable-Remote.bat` and choose
+**2) Public link**. Then in the browser chat open **Choose brain → UNISON PC** and paste the link it
+printed (`https://….ts.net`). Your license key signs you in, and the chat runs on the PC's big model,
+even on phones without WebGPU. Website visitors can only chat: no files, tools, screen control, jobs or
+settings, and requests are rate-limited.
 
 ## License keys
 

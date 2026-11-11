@@ -116,6 +116,7 @@
   .gatebox textarea { font:13px/1.5 var(--mono); min-height:96px; word-break:break-all; }
   .gatebox .btn.primary { width:100%; margin-top:12px; padding:12px; font-size:15px; }
   .gate .err { color:var(--red); font-size:13.5px; min-height:20px; margin-top:10px; }
+  .hidden { display:none !important; }
   .diag { font:11.5px/1.6 var(--mono); color:var(--dim); white-space:pre-wrap; word-break:break-word; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px; max-height:200px; overflow:auto; }
 </style>
 </head>
@@ -159,8 +160,16 @@
 <section class="sheet" id="modelSheet" aria-label="Choose a model">
   <div class="grab"></div>
   <h2>Choose UNISON's brain <button class="hbtn" data-close>✕</button></h2>
+  <h3 style="margin-top:4px">On this device</h3>
   <div id="modelList"></div>
   <p class="hint">Each brain downloads once and is then stored on this device. Bigger = smarter but slower and needs a newer phone.</p>
+  <h3>On a UNISON PC</h3>
+  <button class="opt" id="pcOpt"><div><b>UNISON PC</b><span>The full model on a PC running UNISON · works on any phone</span></div><span class="tag" id="pcTag"></span></button>
+  <div id="pcBox" class="hidden">
+    <input class="field" id="pcUrl" placeholder="https://your-pc.tail1234.ts.net" autocapitalize="off" autocomplete="off" spellcheck="false" inputmode="url" />
+    <div class="btnrow"><button class="btn primary" id="pcConnect">Connect</button></div>
+    <div class="hint" id="pcHint">The PC's public link from <b>Enable-Remote.bat</b> (option 2). Your license key signs you in — chat only.</div>
+  </div>
 </section>
 
 <section class="sheet" id="settingsSheet" aria-label="Settings">
@@ -573,6 +582,7 @@ function setReady(model, fellBack) {
 }
 
 async function ensureEngine() {
+  if (source === "pc") return (pc.token && Date.now() / 1000 < pc.exp - 60) ? pcEngine : await connectPC();
   if (engine && !loading) return engine;
   if (currentLoad) { try { const e = await currentLoad; if (e) return e; } catch {} }
   if (engine) return engine;
@@ -581,10 +591,105 @@ async function ensureEngine() {
 
 function chooseModel(i) {
   if (busy) stopGenerating();
+  if (source !== "device") useSource("device");
+  if (!gpu.ok) { closeSheets(); card("This browser can't run a brain on the device (no WebGPU). Use <b>UNISON PC</b> instead.", "bad"); return; }
   modelIndex = i;
   store.set("model", i);
   closeSheets();
   loadModel(i).catch(() => {});
+}
+
+// ---------------------------------------------------------------- UNISON PC (remote brain)
+let source = store.get("source", "device");          // "device" = WebLLM here, "pc" = a UNISON PC's public link
+let pcUrl = store.get("pc_url", "");
+const pc = { token: null, exp: 0, abort: null, base: "" };
+function normUrl(u) {
+  u = String(u || "").trim();
+  if (!u) return "";
+  if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+  return u.replace(/\/+$/, "");
+}
+async function sitePcUrl() {
+  try { const r = await fetch("remote.json", { cache: "no-store" }); if (r.ok) { const j = await r.json(); return j.url || ""; } } catch {}
+  return "";
+}
+function fetchT(url, opts = {}, ms = 10000) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);
+  return fetch(url, { ...opts, signal: c.signal }).finally(() => clearTimeout(t));
+}
+async function connectPC() {
+  const base = normUrl(pcUrl);
+  if (!base) throw new Error("Paste the UNISON PC's public link first (Choose brain → UNISON PC).");
+  if (!license) throw new Error("Unlock with your license key first.");
+  setStatus("connecting to UNISON PC…", "busy");
+  let h;
+  try { h = await fetchT(base + "/v1/health", {}, 9000); }
+  catch { throw new Error("Can't reach the UNISON PC. It must be on, awake, running UNISON, with the public link turned on (Enable-Remote.bat, option 2)."); }
+  if (!h.ok) throw new Error(`The UNISON PC answered ${h.status}. Is that the right link?`);
+  const r = await fetchT(base + "/v1/auth/key-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: license.key }) }, 15000);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((j.error && j.error.message) || `The UNISON PC refused the key (${r.status}).`);
+  pc.token = j.token; pc.exp = j.expires || 0; pc.base = base;
+  setStatus("ready · UNISON PC · full model", "ok");
+  sendBtn.disabled = false;
+  return pcEngine;
+}
+async function* pcStream(req, retried = false) {
+  if (!pc.token || Date.now() / 1000 > pc.exp - 60) await connectPC();
+  pc.abort = new AbortController();
+  const r = await fetch(pc.base + "/v1/chat/completions", {
+    method: "POST", signal: pc.abort.signal,
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + pc.token },
+    body: JSON.stringify({ messages: req.messages, stream: true, temperature: req.temperature, top_p: req.top_p, max_tokens: req.max_tokens }),
+  });
+  if (r.status === 401 && !retried) { pc.token = null; yield* pcStream(req, true); return; }
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error((j.error && j.error.message) || `UNISON PC error ${r.status}`);
+  }
+  const reader = r.body.getReader(), dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") return;
+      try { const j = JSON.parse(data); if (j.error) throw new Error(j.error.message || "UNISON PC error"); yield j; }
+      catch (e) { if (e.message && !/JSON/.test(e.message)) throw e; }
+    }
+  }
+}
+const pcEngine = {
+  chat: { completions: { create: async (req) => pcStream(req) } },
+  interruptGenerate: async () => { try { pc.abort && pc.abort.abort(); } catch {} },
+};
+function useSource(s) {
+  source = s; store.set("source", s);
+  updateModelButton();
+}
+async function choosePC() {
+  if (busy) stopGenerating();
+  const v = normUrl($("pcUrl").value);
+  if (!v) { $("pcBox").classList.remove("hidden"); $("pcUrl").focus(); $("pcHint").textContent = "Paste the PC's public link first."; return; }
+  pcUrl = v; store.set("pc_url", v); pc.token = null;
+  useSource("pc");
+  $("pcConnect").disabled = true; $("pcHint").textContent = "Connecting…";
+  try { await connectPC(); closeSheets(); hideLoadCard(); }
+  catch (e) { lastError = "pc: " + e.message; $("pcHint").textContent = e.message; setStatus("UNISON PC unreachable", "bad"); }
+  $("pcConnect").disabled = false;
+}
+$("pcOpt").onclick = () => { $("pcBox").classList.toggle("hidden"); if (pcUrl && source !== "pc") choosePC(); };
+$("pcConnect").onclick = choosePC;
+$("pcUrl").addEventListener("keydown", (e) => { if (e.key === "Enter") choosePC(); });
+function pcErrorCard(msg) {
+  const c = card(`<b>UNISON PC:</b> ${esc(msg)}<div class="row"><button class="btn primary" data-retry>Try again</button><button class="btn" data-dev>Use this device instead</button></div>`, "bad");
+  c.querySelector("[data-retry]").onclick = async () => { c.remove(); try { await connectPC(); } catch (e) { pcErrorCard(e.message); } };
+  c.querySelector("[data-dev]").onclick = () => { c.remove(); chooseModel(modelIndex ?? 0); };
 }
 
 // ---------------------------------------------------------------- chat
@@ -601,9 +706,12 @@ async function generate(el) {
   let nudge = false;
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    let eng;
-    try { eng = await ensureEngine(); } catch { eng = null; }
-    if (!eng) { body.innerHTML = '<span class="thinking">couldn\'t load the brain — see the message above</span>'; return null; }
+    let eng, engErr = "";
+    try { eng = await ensureEngine(); } catch (e) { eng = null; engErr = e && e.message || String(e); }
+    if (!eng) {
+      if (source === "pc") { lastError = "pc: " + engErr; body.innerHTML = '<span class="thinking">couldn\'t reach the UNISON PC</span>'; setStatus("UNISON PC unreachable", "bad"); pcErrorCard(engErr); return null; }
+      body.innerHTML = '<span class="thinking">couldn\'t load the brain — see the message above</span>'; return null;
+    }
     const ex = (EXAMPLES[settings.persona] || EXAMPLES.funny).flatMap(([u, a]) => [{ role: "user", content: u }, { role: "assistant", content: a }]);
     const messages = [{ role: "system", content: systemPrompt(settings) }, ...ex, ...history.slice(-12),
       ...(nudge ? [{ role: "system", content: "Reply in English only." }] : [])];
@@ -629,9 +737,15 @@ async function generate(el) {
       }
     } catch (err) {
       // GPU lost / out of memory mid-reply: drop to a lighter brain and retry automatically.
-      lastError = `generate ${loadedId}: ${err && err.message || err}`;
+      lastError = `generate ${source === "pc" ? "pc" : loadedId}: ${err && err.message || err}`;
       console.warn(err);
       if (stopRequested) break;
+      if (source === "pc") {
+        if (err && err.name === "AbortError") break;
+        body.innerHTML = '<span class="thinking">the UNISON PC stopped answering</span>';
+        pcErrorCard(err && err.message || String(err));
+        return reply.trim() ? reply : null;
+      }
       if (loadedId) { genFails[loadedId] = (genFails[loadedId] || 0) + 1; if (genFails[loadedId] >= 2) markBad(loadedId); }
       try { await engine?.unload(); } catch {}
       engine = null; loadedId = null;
@@ -652,7 +766,7 @@ async function generate(el) {
   const secs = Math.max((performance.now() - started) / 1000, 0.1);
   const tps = tokens / secs;
   addActions(el, reply, tokens ? `${tps.toFixed(1)} tok/s` : "");
-  if (tokens > 25 && tps < 2.5 && modelIndex !== 0) {
+  if (source === "device" && tokens > 25 && tps < 2.5 && modelIndex !== 0) {
     const c = card(`Replies are slow on this device with <b>${esc(MODELS[modelIndex].name)}</b>.
       <div class="row"><button class="btn primary" data-tiny>Switch to Tiny (much faster)</button></div>`, "warn");
     c.querySelector("[data-tiny]").onclick = () => { c.remove(); chooseModel(0); };
@@ -716,19 +830,24 @@ document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = closeSheet
 $("modelBtn").onclick = () => openSheet("modelSheet");
 $("settingsBtn").onclick = () => openSheet("settingsSheet");
 
-function updateModelButton() { $("modelBtn").textContent = (MODELS[modelIndex]?.name || "Model") + " ▾"; }
+function updateModelButton() { $("modelBtn").textContent = (source === "pc" ? "UNISON PC" : (MODELS[modelIndex]?.name || "Model")) + " ▾"; }
 
 function drawModelList() {
   const list = $("modelList");
   list.innerHTML = "";
   MODELS.forEach((m, i) => {
     const b = document.createElement("button");
-    b.className = "opt" + (i === modelIndex ? " on" : "");
-    const tag = i === modelIndex ? (engine && !loading ? "loaded ✓" : "loading…") : "";
+    const on = source === "device" && i === modelIndex;
+    b.className = "opt" + (on ? " on" : "");
+    const tag = on ? (engine && !loading ? "loaded ✓" : "loading…") : (!gpu.ok ? "needs WebGPU" : "");
     b.innerHTML = `<div><b>${m.name}</b><span>${m.blurb} · ${m.size}</span></div><span class="tag">${tag}</span>`;
     b.onclick = () => chooseModel(i);
     list.appendChild(b);
   });
+  $("pcOpt").classList.toggle("on", source === "pc");
+  $("pcTag").textContent = source === "pc" ? (pc.token ? "connected ✓" : "connecting…") : "";
+  $("pcUrl").value = pcUrl;
+  $("pcBox").classList.toggle("hidden", !(source === "pc" || !pcUrl));
 }
 
 function seg(id, key) {
@@ -757,6 +876,7 @@ function diagText() {
     `maxBufferSize: ${mb(gpu.limits.maxBufferSize)}  maxStorageBinding: ${mb(gpu.limits.maxStorageBufferBindingSize)}`,
     `device memory: ${navigator.deviceMemory ? navigator.deviceMemory + " GB" : "?"}`,
     `license: ${license ? license.data.plan + " · " + license.data.id : "none"}`,
+    `brain: ${source === "pc" ? "UNISON PC " + (pcUrl || "(no link)") + (pc.token ? " · connected" : "") : "this device"}`,
     `selected: ${MODELS[modelIndex]?.name}  loaded: ${loadedId || "none"}`,
     `skipped builds: ${[...badIds()].join(", ") || "none"}`,
     `last error: ${lastError || "none"}`,
@@ -792,12 +912,19 @@ drawThread();
 autosize();
 (async () => {
   await ensureLicense();                        // no key, no brain download
+  if (!pcUrl) { pcUrl = await sitePcUrl(); if (pcUrl) store.set("pc_url", pcUrl); }
   await probeGPU();
+  if (source === "pc" || (!gpu.ok && pcUrl)) {   // the PC does the thinking: no WebGPU needed here
+    useSource("pc");
+    try { await connectPC(); } catch (e) { lastError = "pc: " + e.message; setStatus("UNISON PC unreachable", "bad"); pcErrorCard(e.message); }
+    return;
+  }
   if (!gpu.ok) {
-    setStatus("this browser can't run it", "bad");
-    card("This browser doesn't support <b>WebGPU</b>, which UNISON needs to think on your device. " +
-         "Try <b>Chrome</b> on Android or a computer, or <b>Safari</b> on a recent iPhone.", "bad");
-    sendBtn.disabled = true;
+    setStatus("this browser can't run it here", "bad");
+    const c = card("This browser doesn't support <b>WebGPU</b>, so it can't run a brain on this device. " +
+         "Try <b>Chrome</b> on Android or a computer or <b>Safari</b> on a recent iPhone — or connect to a <b>UNISON PC</b>." +
+         '<div class="row"><button class="btn primary" data-pc>Connect to a UNISON PC</button></div>', "bad");
+    c.querySelector("[data-pc]").onclick = () => openSheet("modelSheet");
     return;
   }
   if (modelIndex == null || !MODELS[modelIndex]) {

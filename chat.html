@@ -149,8 +149,8 @@
   <div class="gatebox">
     <svg class="mark" viewBox="0 0 32 32"><circle cx="12" cy="16" r="7"/><circle class="s" cx="20" cy="16" r="7"/></svg>
     <h1>Unlock UNISON</h1>
-    <p>Enter your license key to start chatting. The AI still runs entirely on your device.</p>
-    <textarea class="field" id="keyInput" rows="3" placeholder="UNISON-…" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+    <p>Enter your license key (or password) to start chatting. The AI still runs entirely on your device.</p>
+    <textarea class="field" id="keyInput" rows="3" placeholder="UNISON-… key or password" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
     <button class="btn primary" id="unlockBtn">Unlock</button>
     <div class="err" id="gateErr"></div>
     <p class="hint" style="margin:6px 0 0">Don't have a key? <a href="./#license">Get one here</a>. A key works here and in the Windows app.</p>
@@ -222,6 +222,8 @@ const NOBLE = "https://cdn.jsdelivr.net/npm/@noble/ed25519@2.1.0/+esm";
 // Public half of the owner's signing key (same as the Windows app). Keys come from the owner's Key Studio.
 const LICENSE_PUBLIC_KEY = "ca0QGySY2IMmhMXY5_egV-vasWuIHsWEFK5mLQwfHkA";
 const LIC_PREFIX = "UNISON-";
+// Owner password (stored only as a PBKDF2-SHA256 fingerprint, never as text).
+const OWNER_PASS = { salt: "j3uD2U08OioAVZODjxBodw==", hash: "YJft6M+bvrA8vg7dn28xIyHwMKX0X18VQ60KhfUH8mM=", iter: 310000 };
 
 // ---------------------------------------------------------------- models
 // Candidate builds, best first. {q} -> q4f16_1 on GPUs with 16-bit shaders (faster), else q4f32_1.
@@ -444,6 +446,15 @@ async function checkKey(raw) {
   } catch (e) { if (e.message === "revoked") throw new Error("This key has been switched off by the owner."); }
   return { key, data };
 }
+async function ownerPassOk(pw) {
+  try {
+    const salt = Uint8Array.from(atob(OWNER_PASS.salt), (c) => c.charCodeAt(0));
+    const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: OWNER_PASS.iter }, k, 256);
+    return btoa(String.fromCharCode(...new Uint8Array(bits))) === OWNER_PASS.hash;
+  } catch { return false; }
+}
+const OWNER_LICENSE = { key: null, owner: true, data: { to: "Owner", plan: "owner", id: "owner-password", exp: null } };
 let license = null, gateResolve = null;
 function showGate(msg) {
   $("gate").hidden = false;
@@ -452,6 +463,7 @@ function showGate(msg) {
   setTimeout(() => $("keyInput").focus(), 60);
 }
 async function ensureLicense() {
+  if (store.get("owner_pass", "") === OWNER_PASS.hash) { license = OWNER_LICENSE; return; }
   const saved = store.get("license", "");
   if (saved) {
     try { license = await checkKey(saved); return; }
@@ -463,8 +475,15 @@ $("unlockBtn").onclick = async () => {
   const b = $("unlockBtn");
   b.disabled = true; b.textContent = "Checking…"; $("gateErr").textContent = "";
   try {
-    license = await checkKey($("keyInput").value);
-    store.set("license", license.key);
+    const typed = $("keyInput").value.trim();
+    if (!typed.replace(/\s+/g, "").startsWith(LIC_PREFIX) && await ownerPassOk(typed)) {
+      license = OWNER_LICENSE;
+      store.set("owner_pass", OWNER_PASS.hash);
+    } else {
+      if (!typed.replace(/\s+/g, "").startsWith(LIC_PREFIX)) throw new Error("Wrong password, or that isn't a UNISON license key.");
+      license = await checkKey(typed);
+      store.set("license", license.key);
+    }
     $("gate").hidden = true;
     if (gateResolve) { gateResolve(); gateResolve = null; }
   } catch (e) { $("gateErr").textContent = e.message; }
@@ -621,6 +640,7 @@ async function connectPC() {
   const base = normUrl(pcUrl);
   if (!base) throw new Error("Paste the UNISON PC's public link first (Choose brain → UNISON PC).");
   if (!license) throw new Error("Unlock with your license key first.");
+  if (!license.key) throw new Error("The UNISON PC needs a license key — the owner password only unlocks the brains on this device.");
   setStatus("connecting to UNISON PC…", "busy");
   let h;
   try { h = await fetchT(base + "/v1/health", {}, 9000); }
@@ -889,7 +909,7 @@ $("copyDiag").onclick = async (e) => {
 };
 $("removeKey").onclick = () => {
   if (!confirm("Remove your license key from this device? You'll need to enter it again to chat.")) return;
-  store.set("license", ""); location.reload();
+  store.set("license", ""); store.set("owner_pass", ""); location.reload();
 };
 $("clearChat").onclick = () => { if (busy) return; history = []; store.set("chat", []); drawThread(); closeSheets(); };
 $("clearModels").onclick = async (e) => {

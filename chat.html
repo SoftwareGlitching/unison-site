@@ -52,9 +52,15 @@
   .loadcard .meter { height:6px; background:var(--line); border-radius:6px; overflow:hidden; margin:10px 0 6px; }
   .loadcard .meter i { display:block; height:100%; width:0; background:var(--accent); transition:width .25s; }
   .loadcard .sub { font:11.5px var(--mono); color:var(--dim); }
-  .msg .who { font:10.5px var(--mono); letter-spacing:.14em; text-transform:uppercase; margin-bottom:5px; color:var(--accent); }
-  .msg.user .who { color:var(--dim); text-align:right; }
-  .msg.user .body { background:var(--panel2); border:1px solid var(--line2); border-radius:14px 14px 4px 14px; padding:9px 13px;
+  .msg .who { display:none; }
+  .msg.assistant { display:grid; grid-template-columns:30px minmax(0,1fr); column-gap:11px; }
+  .msg.assistant .av { width:30px; height:30px; border-radius:10px; background:var(--panel); border:1px solid var(--line2); display:grid; place-items:center; }
+  .msg.assistant .av svg { width:19px; height:19px; } .msg.assistant .av circle { fill:none; stroke:var(--accent); stroke-width:2.6; } .msg.assistant .av .s { opacity:.5; }
+  .msg.assistant .body, .msg.assistant .actions { grid-column:2; } .msg.assistant .body { padding-top:3px; }
+  .plan { font:600 10px var(--sans); letter-spacing:.08em; text-transform:uppercase; padding:3px 8px; border-radius:999px; color:#f2b45a;
+    background:rgba(242,180,90,.12); border:1px solid rgba(242,180,90,.4); white-space:nowrap; }
+  body:not(.dev) .devonly { display:none !important; }
+  .msg.user .body { background:var(--panel2); border:1px solid var(--line2); border-radius:18px 18px 6px 18px; padding:9px 14px;
     margin-left:auto; max-width:88%; width:fit-content; white-space:pre-wrap; }
   .body p { margin:.45em 0; } .body p:first-child { margin-top:0; } .body p:last-child { margin-bottom:0; }
   .body ul { padding-left:1.25em; margin:.4em 0; }
@@ -127,6 +133,7 @@
     <div class="brand">UNISON</div>
     <div class="status" id="status">starting…</div>
   </div>
+  <span class="plan" id="planBadge" hidden></span>
   <button class="hbtn" id="modelBtn" aria-label="Choose model">Chat ▾</button>
   <button class="hbtn" id="settingsBtn" aria-label="Settings">⚙</button>
   <button class="hbtn" id="newBtn" aria-label="New chat">＋</button>
@@ -148,12 +155,12 @@
 <div class="gate" id="gate" hidden>
   <div class="gatebox">
     <svg class="mark" viewBox="0 0 32 32"><circle cx="12" cy="16" r="7"/><circle class="s" cx="20" cy="16" r="7"/></svg>
-    <h1>Unlock UNISON</h1>
-    <p>Enter your license key (or password) to start chatting. The AI still runs entirely on your device.</p>
+    <h1>Sign in to UNISON</h1>
+    <p>Use your license key — or the owner password. The AI still runs entirely on your device.</p>
     <textarea class="field" id="keyInput" rows="3" placeholder="UNISON-… key or password" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
-    <button class="btn primary" id="unlockBtn">Unlock</button>
+    <button class="btn primary" id="unlockBtn">Sign in</button>
     <div class="err" id="gateErr"></div>
-    <p class="hint" style="margin:6px 0 0">Don't have a key? <a href="./#license">Get one here</a>. A key works here and in the Windows app.</p>
+    <p class="hint" style="margin:6px 0 0">Don't have a key? <a href="./#plans">Buy one</a> — it works here and in the Windows app.</p>
   </div>
 </div>
 
@@ -183,7 +190,7 @@
 
   <h3>Reply length</h3>
   <div class="seg" id="segLength">
-    <button data-v="short">Short</button><button data-v="normal">Normal</button><button data-v="long">Detailed</button>
+    <button data-v="short">Short</button><button data-v="normal">Normal</button><button data-v="long">Detailed</button><button data-v="max" class="devonly">Max</button>
   </div>
 
   <h3>Creativity <span id="tempVal" style="float:right;color:var(--accent)"></span></h3>
@@ -201,9 +208,15 @@
   <h3>Custom instructions</h3>
   <textarea class="field" id="custom" maxlength="1200" placeholder="e.g. I make Roblox games. Keep code in Luau. Hype me up when I finish something."></textarea>
 
-  <h3>License</h3>
+  <div class="devonly">
+    <h3>Developer <span class="plan" style="margin-left:6px">dev</span></h3>
+    <textarea class="field" id="sysOverride" maxlength="6000" placeholder="Replace UNISON's whole system prompt (leave empty to use the normal one)"></textarea>
+    <div class="hint">Dev accounts also get Max-length replies and higher limits on the UNISON PC.</div>
+  </div>
+
+  <h3>Account</h3>
   <div class="diag" id="licInfo">…</div>
-  <div class="btnrow"><button class="btn danger" id="removeKey">Remove key from this device</button></div>
+  <div class="btnrow"><button class="btn danger" id="removeKey">Sign out</button></div>
 
   <h3>Device &amp; storage</h3>
   <div class="diag" id="diag">…</div>
@@ -217,7 +230,7 @@
 
 <script type="module">
 const LIB = "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.79/+esm";
-const VERSION = "v6 · Nov 10";
+const VERSION = "v7 · Nov 11";
 const NOBLE = "https://cdn.jsdelivr.net/npm/@noble/ed25519@2.1.0/+esm";
 // Public half of the owner's signing key (same as the Windows app). Keys come from the owner's Key Studio.
 const LICENSE_PUBLIC_KEY = "ca0QGySY2IMmhMXY5_egV-vasWuIHsWEFK5mLQwfHkA";
@@ -252,6 +265,7 @@ const LENGTHS = {
   short: { rule: "Keep every reply very short: 1-3 sentences unless the user asks for more.", max: 220 },
   normal: { rule: "Keep replies conversational: usually 2-6 sentences, longer only when the user asks for detail or a list.", max: 450 },
   long: { rule: "Give thorough, well-organized answers with examples when useful.", max: 900 },
+  max: { rule: "Give complete, in-depth answers; use as much length as the question deserves.", max: 2000 },
 };
 const EXAMPLES = {
   funny: [
@@ -269,6 +283,7 @@ const EXAMPLES = {
 };
 
 function systemPrompt(s) {
+  if (isDev() && s.sysOverride && s.sysOverride.trim()) return s.sysOverride.trim();
   const lines = [
     "You are UNISON, an AI assistant created by PerkyPop.",
     PERSONAS[s.persona] || PERSONAS.funny,
@@ -372,7 +387,8 @@ function msgEl(role, content, opts = {}) {
   document.getElementById("intro")?.remove();
   const el = document.createElement("div");
   el.className = "msg " + role;
-  el.innerHTML = `<div class="who">${role === "user" ? (settings.userName ? esc(settings.userName) : "you") : "unison"}</div><div class="body"></div>`;
+  el.innerHTML = role === "user" ? `<div class="body"></div>`
+    : `<div class="av"><svg viewBox="0 0 32 32"><circle cx="12" cy="16" r="7"/><circle class="s" cx="20" cy="16" r="7"/></svg></div><div class="body"></div>`;
   const body = el.querySelector(".body");
   if (role === "user") body.textContent = content; else body.innerHTML = content ? render(content) : "";
   if (role === "assistant" && content && !opts.noActions) addActions(el, content);
@@ -456,6 +472,15 @@ async function ownerPassOk(pw) {
 }
 const OWNER_LICENSE = { key: null, owner: true, data: { to: "Owner", plan: "owner", id: "owner-password", exp: null } };
 let license = null, gateResolve = null;
+function isDev() { return !!license && (license.owner || ["dev", "owner"].includes(license.data && license.data.plan)); }
+function applyAccount() {
+  const dev = isDev();
+  document.body.classList.toggle("dev", dev);
+  const b = $("planBadge");
+  b.hidden = !dev;
+  b.textContent = license && license.owner ? "owner" : dev ? license.data.plan : "";
+  if (!dev && settings.length === "max") { settings.length = "long"; saveSettings(); }
+}
 function showGate(msg) {
   $("gate").hidden = false;
   $("gateErr").textContent = msg || "";
@@ -463,10 +488,10 @@ function showGate(msg) {
   setTimeout(() => $("keyInput").focus(), 60);
 }
 async function ensureLicense() {
-  if (store.get("owner_pass", "") === OWNER_PASS.hash) { license = OWNER_LICENSE; return; }
+  if (store.get("owner_pass", "") === OWNER_PASS.hash) { license = OWNER_LICENSE; applyAccount(); return; }
   const saved = store.get("license", "");
   if (saved) {
-    try { license = await checkKey(saved); return; }
+    try { license = await checkKey(saved); applyAccount(); return; }
     catch (e) { if (/expired|switched off|isn't valid/.test(e.message)) store.set("license", ""); showGate("Your saved key: " + e.message); }
   } else showGate("");
   await new Promise((res) => (gateResolve = res));
@@ -485,9 +510,10 @@ $("unlockBtn").onclick = async () => {
       store.set("license", license.key);
     }
     $("gate").hidden = true;
+    applyAccount();
     if (gateResolve) { gateResolve(); gateResolve = null; }
   } catch (e) { $("gateErr").textContent = e.message; }
-  b.disabled = false; b.textContent = "Unlock";
+  b.disabled = false; b.textContent = "Sign in";
 };
 $("keyInput").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("unlockBtn").click(); } });
 function licText() {
@@ -879,11 +905,12 @@ function seg(id, key) {
 function drawSettings() {
   seg("segPersona", "persona"); seg("segLength", "length"); seg("segLang", "lang");
   $("temp").value = settings.temp; $("tempVal").textContent = Number(settings.temp).toFixed(2);
-  $("userName").value = settings.userName; $("custom").value = settings.custom;
+  $("userName").value = settings.userName; $("custom").value = settings.custom; $("sysOverride").value = settings.sysOverride || "";
 }
 $("temp").oninput = (e) => { settings.temp = Number(e.target.value); $("tempVal").textContent = settings.temp.toFixed(2); saveSettings(); };
 $("userName").oninput = (e) => { settings.userName = e.target.value.trim(); saveSettings(); };
 $("custom").oninput = (e) => { settings.custom = e.target.value.trim(); saveSettings(); };
+$("sysOverride").oninput = (e) => { settings.sysOverride = e.target.value; saveSettings(); };
 function saveSettings() { store.set("settings", settings); }
 
 function diagText() {
@@ -908,7 +935,7 @@ $("copyDiag").onclick = async (e) => {
   try { await navigator.clipboard.writeText(diagText()); e.target.textContent = "Copied ✓"; setTimeout(() => (e.target.textContent = "Copy diagnostics"), 1500); } catch {}
 };
 $("removeKey").onclick = () => {
-  if (!confirm("Remove your license key from this device? You'll need to enter it again to chat.")) return;
+  if (!confirm("Sign out on this device? You'll need your key or password again to chat.")) return;
   store.set("license", ""); store.set("owner_pass", ""); location.reload();
 };
 $("clearChat").onclick = () => { if (busy) return; history = []; store.set("chat", []); drawThread(); closeSheets(); };

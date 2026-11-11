@@ -1,0 +1,11 @@
+{
+  "note": "Edit prices and paste each Gumroad product link into url. Empty url = 'Coming soon'.",
+  "plans": [
+    { "id": "week", "name": "1 Week", "price": "", "per": "week", "url": "",
+      "features": ["Windows app + browser chat", "Full local AI on your PC", "Great for trying it out"] },
+    { "id": "month", "name": "1 Month", "price": "", "per": "month", "url": "", "popular": true,
+      "features": ["Everything in 1 Week", "Coding agent & screen control", "Use it from your phone"] },
+    { "id": "lifetime", "name": "Lifetime", "price": "", "per": "", "url": "",
+      "features": ["Everything, forever", "All future updates", "Best value"] }
+  ]
+}

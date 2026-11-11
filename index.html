@@ -107,6 +107,35 @@
   footer { border-top:1px solid var(--line); padding:30px 0 50px; color:var(--faint); font-size:13px; text-align:center; }
   footer a { color:var(--dim); }
   @media (max-width:640px){ .shot .body{ grid-template-columns:1fr; } .shot .side{ display:none; } nav{ display:none; } }
+
+  .acct { margin-left:6px; background:transparent; color:var(--accent); border:1px solid var(--accent); border-radius:999px; padding:5px 14px; font:600 13px var(--sans); cursor:pointer; }
+  .acct:hover { background:rgba(103,232,201,.1); }
+  .acct.in { color:var(--text); border-color:var(--line2); }
+  .acct .pl { font:600 10px var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--amber); margin-right:6px; }
+  .plans { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:26px 0 8px; }
+  .plan-card { border:1px solid var(--line2); border-radius:18px; padding:22px; background:var(--panel); display:flex; flex-direction:column; position:relative; }
+  .plan-card.pop { border-color:var(--accent); box-shadow:0 0 0 3px rgba(103,232,201,.12); }
+  .plan-card .badge { position:absolute; top:-11px; left:50%; transform:translateX(-50%); background:var(--accent); color:#04201a; font:700 11px var(--sans);
+    letter-spacing:.06em; text-transform:uppercase; padding:3px 10px; border-radius:999px; }
+  .plan-card h3 { margin:0 0 4px; font-size:19px; }
+  .plan-card .price { font:700 32px/1.1 var(--sans); margin:8px 0 2px; }
+  .plan-card .price small { font:500 14px var(--sans); color:var(--dim); }
+  .plan-card ul { color:var(--dim); padding-left:1.1em; line-height:1.75; margin:12px 0 18px; flex:1; }
+  .plan-card .cta { align-self:stretch; justify-content:center; }
+  .plan-card .cta[aria-disabled=true] { opacity:.5; pointer-events:none; }
+  .modal { position:fixed; inset:0; background:rgba(4,6,9,.6); backdrop-filter:blur(3px); display:none; place-items:center; padding:18px; z-index:100; }
+  .modal.open { display:grid; }
+  .modal-card { width:100%; max-width:420px; background:var(--panel); color:var(--text); border:1px solid var(--line2); border-radius:20px; padding:26px 24px; box-shadow:0 30px 80px rgba(0,0,0,.45); }
+  .modal-card h3 { margin:0 0 6px; font-size:21px; }
+  .modal-card p { color:var(--dim); margin:0 0 14px; }
+  .modal-card textarea { width:100%; min-height:90px; resize:vertical; background:var(--bg); color:var(--text); border:1px solid var(--line2); border-radius:12px;
+    padding:11px 12px; font:13px/1.5 var(--mono); outline:none; word-break:break-all; box-sizing:border-box; }
+  .modal-card textarea:focus { border-color:var(--accent); }
+  .modal-card .cta { width:100%; justify-content:center; margin-top:12px; }
+  .modal-card .err { color:#e05a5a; font-size:13.5px; min-height:20px; margin-top:8px; }
+  .modal-card .row2 { display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:13.5px; }
+  .modal-card .x { float:right; background:none; border:0; color:var(--dim); font-size:20px; cursor:pointer; }
+  @media (max-width:820px) { .plans { grid-template-columns:1fr; } nav a:not([href="#license"]) { display:none; } }
 </style>
 </head>
 <body>
@@ -121,7 +150,8 @@
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
       <a href="#requirements">Requirements</a>
-      <a href="#license">License</a>
+      <a href="#license">Pricing</a>
+      <button class="acct" id="acctBtn" type="button">Sign in</button>
     </nav>
   </header>
 
@@ -231,11 +261,12 @@
 
 <section id="license">
   <div class="wrap">
-    <h2>Download free. Activate with a key.</h2>
-    <p class="lead">UNISON installs for free, then asks for a license key the first time it starts. The same key
-      unlocks the browser chat. Keys can be locked to your PC — the activation screen shows the Machine ID to send when you buy.</p>
-    <div style="text-align:center"><a class="cta" id="buy" href="#">Get a license key</a>
-      <span class="sub-cta" id="buy-note"></span></div>
+    <div id="plans"></div>
+    <h2>Pick your plan</h2>
+    <p class="lead">One license key unlocks everything: the Windows app with its full local AI, and the browser chat on your phone.
+      Keys can be locked to your PC — the activation screen shows the Machine ID to send when you buy.</p>
+    <div class="plans" id="planGrid"></div>
+    <p class="sub-cta" style="text-align:center" id="buy-note">After you pay, your key arrives by email. Paste it into UNISON's activation screen or the browser chat.</p>
   </div>
 </section>
 
@@ -254,17 +285,90 @@
   </div>
 </footer>
 
-<script>
-  // Filled in by scripts/configure_site.py when the site is built.
-  var DOWNLOAD = "https://softwareglitching.github.io/unison-site/downloads/UNISON.zip";
-  var PURCHASE = "YOUR_PURCHASE_URL";
-  ["download", "download2", "download3"].forEach(function (id) { document.getElementById(id).href = DOWNLOAD; });
-  if (PURCHASE && PURCHASE.indexOf("YOUR_") !== 0) {
-    ["buy", "buy-link"].forEach(function (id) { var a = document.getElementById(id); a.href = PURCHASE; a.target = "_blank"; });
-  } else {
-    var b = document.getElementById("buy"); b.removeAttribute("href"); b.style.opacity = ".55"; b.textContent = "Licenses available soon";
-    document.getElementById("buy-link").href = "#license";
+<div class="modal" id="signin" role="dialog" aria-modal="true" aria-labelledby="siTitle">
+  <div class="modal-card">
+    <button class="x" id="siClose" aria-label="Close">×</button>
+    <h3 id="siTitle">Sign in</h3>
+    <p id="siWhy">Use your UNISON license key — or the owner password.</p>
+    <textarea id="siKey" placeholder="UNISON-… key or password" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    <button class="cta" id="siGo" type="button">Sign in</button>
+    <div class="err" id="siErr"></div>
+    <div class="row2"><span class="sub-cta" style="margin:0">No key yet?</span><a href="#plans" id="siBuy">See plans →</a></div>
+  </div>
+</div>
+
+<script type="module">
+  // DOWNLOAD / PURCHASE are filled in by scripts/configure_site.py when the site is built.
+  import { current, signIn, signOut, isDev } from "./account.js";
+  const DOWNLOAD = "https://softwareglitching.github.io/unison-site/downloads/UNISON.zip";
+  const PURCHASE = "YOUR_PURCHASE_URL";
+  const $ = (id) => document.getElementById(id);
+  let account = null, after = null;
+
+  function paintAccount() {
+    const b = $("acctBtn");
+    if (account) {
+      b.classList.add("in");
+      b.innerHTML = (isDev(account) ? `<span class="pl">${account.owner ? "owner" : account.data.plan}</span>` : "") +
+        (account.data.to || "Signed in").replace(/[<>&]/g, "") + " · Sign out";
+    } else { b.classList.remove("in"); b.textContent = "Sign in"; }
   }
+  function openSignIn(why, then) {
+    after = then || null;
+    $("siWhy").textContent = why || "Use your UNISON license key — or the owner password.";
+    $("siErr").textContent = ""; $("signin").classList.add("open");
+    setTimeout(() => $("siKey").focus(), 50);
+  }
+  function closeSignIn() { $("signin").classList.remove("open"); after = null; }
+  $("siClose").onclick = closeSignIn;
+  $("signin").addEventListener("mousedown", (e) => { if (e.target === $("signin")) closeSignIn(); });
+  $("siBuy").onclick = closeSignIn;
+  $("siKey").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("siGo").click(); } });
+  $("siGo").onclick = async () => {
+    const btn = $("siGo"); btn.disabled = true; btn.textContent = "Checking…"; $("siErr").textContent = "";
+    try {
+      account = await signIn($("siKey").value);
+      $("siKey").value = ""; paintAccount();
+      const next = after; closeSignIn(); if (next) next();
+    } catch (e) { $("siErr").textContent = e.message; }
+    btn.disabled = false; btn.textContent = "Sign in";
+  };
+  $("acctBtn").onclick = () => {
+    if (!account) return openSignIn();
+    if (confirm("Sign out on this device?")) { signOut(); account = null; paintAccount(); }
+  };
+
+  // Downloads are for license holders: sign in first, then the download starts.
+  ["download", "download2", "download3"].forEach((id) => {
+    const a = $(id); if (!a) return;
+    a.href = "#license";
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      const go = () => { location.href = DOWNLOAD; };
+      account ? go() : openSignIn("Downloading UNISON needs a license key. Sign in and the download starts right away.", go);
+    });
+  });
+
+  // Plans (edit plans.json: prices + your Gumroad links).
+  async function drawPlans() {
+    let cfg = null;
+    try { const r = await fetch("plans.json", { cache: "no-store" }); if (r.ok) cfg = await r.json(); } catch {}
+    const plans = (cfg && cfg.plans) || [];
+    const fallbackUrl = PURCHASE.startsWith("YOUR_") ? "" : PURCHASE;
+    $("planGrid").innerHTML = plans.map((p) => {
+      const url = p.url || fallbackUrl;
+      const price = p.price ? `${p.price}<small>${p.per ? " / " + p.per : ""}</small>` : `<small>Price coming soon</small>`;
+      return `<div class="plan-card ${p.popular ? "pop" : ""}">${p.popular ? '<span class="badge">Most popular</span>' : ""}
+        <h3>${p.name}</h3><div class="price">${price}</div>
+        <ul>${(p.features || []).map((f) => `<li>${f}</li>`).join("")}</ul>
+        <a class="cta" ${url ? `href="${url}" target="_blank" rel="noopener"` : 'aria-disabled="true"'}>${url ? "Buy " + p.name : "Coming soon"}</a></div>`;
+    }).join("");
+    const hb = $("buy-link"); if (hb) hb.href = "#license";
+  }
+
+  account = await current();
+  paintAccount();
+  drawPlans();
 </script>
 </body>
 </html>

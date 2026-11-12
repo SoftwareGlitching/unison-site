@@ -49,13 +49,18 @@ async function ownerPassOk(pw) {
   } catch { return false; }
 }
 
+const OWNER_HOURS = 12;
+function ownerSessionValid() {
+  const v = store.get("owner_pass", null);
+  return !!(v && v.h === OWNER_PASS.hash && Date.now() - (v.t || 0) < OWNER_HOURS * 3600e3);
+}
 const OWNER = { owner: true, key: null, data: { to: "Owner", plan: "owner", id: "owner-password", exp: null } };
 
 /** Sign in with a key or the owner password. Throws with a readable message. */
 export async function signIn(input) {
   const typed = String(input || "").trim();
   if (!typed.replace(/\s+/g, "").startsWith(PREFIX) && await ownerPassOk(typed)) {
-    store.set("owner_pass", OWNER_PASS.hash);
+    store.set("owner_pass", { h: OWNER_PASS.hash, t: Date.now() });
     return OWNER;
   }
   const lic = await checkKey(typed);
@@ -65,7 +70,7 @@ export async function signIn(input) {
 
 /** The signed-in account on this device, or null (an expired/invalid saved key signs you out). */
 export async function current() {
-  if (store.get("owner_pass", "") === OWNER_PASS.hash) return OWNER;
+  if (ownerSessionValid()) return OWNER;
   const saved = store.get("license", "");
   if (!saved) return null;
   try { return await checkKey(saved); } catch { store.set("license", ""); return null; }

@@ -230,7 +230,7 @@
 
 <script type="module">
 const LIB = "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.79/+esm";
-const VERSION = "v7 · Nov 11";
+const VERSION = "v8 · Nov 12";
 const NOBLE = "https://cdn.jsdelivr.net/npm/@noble/ed25519@2.1.0/+esm";
 // Public half of the owner's signing key (same as the Windows app). Keys come from the owner's Key Studio.
 const LICENSE_PUBLIC_KEY = "ca0QGySY2IMmhMXY5_egV-vasWuIHsWEFK5mLQwfHkA";
@@ -470,6 +470,11 @@ async function ownerPassOk(pw) {
     return btoa(String.fromCharCode(...new Uint8Array(bits))) === OWNER_PASS.hash;
   } catch { return false; }
 }
+const OWNER_HOURS = 12;   // owner-password sign-ins expire; license keys stay remembered
+function ownerSessionValid() {
+  const v = store.get("owner_pass", null);
+  return !!(v && v.h === OWNER_PASS.hash && Date.now() - (v.t || 0) < OWNER_HOURS * 3600e3);
+}
 const OWNER_LICENSE = { key: null, owner: true, data: { to: "Owner", plan: "owner", id: "owner-password", exp: null } };
 let license = null, gateResolve = null;
 function isDev() { return !!license && (license.owner || ["dev", "owner"].includes(license.data && license.data.plan)); }
@@ -488,7 +493,7 @@ function showGate(msg) {
   setTimeout(() => $("keyInput").focus(), 60);
 }
 async function ensureLicense() {
-  if (store.get("owner_pass", "") === OWNER_PASS.hash) { license = OWNER_LICENSE; applyAccount(); return; }
+  if (ownerSessionValid()) { license = OWNER_LICENSE; applyAccount(); return; }
   const saved = store.get("license", "");
   if (saved) {
     try { license = await checkKey(saved); applyAccount(); return; }
@@ -503,7 +508,7 @@ $("unlockBtn").onclick = async () => {
     const typed = $("keyInput").value.trim();
     if (!typed.replace(/\s+/g, "").startsWith(LIC_PREFIX) && await ownerPassOk(typed)) {
       license = OWNER_LICENSE;
-      store.set("owner_pass", OWNER_PASS.hash);
+      store.set("owner_pass", { h: OWNER_PASS.hash, t: Date.now() });
     } else {
       if (!typed.replace(/\s+/g, "").startsWith(LIC_PREFIX)) throw new Error("Wrong password, or that isn't a UNISON license key.");
       license = await checkKey(typed);

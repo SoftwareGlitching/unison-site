@@ -158,20 +158,20 @@ Run it with and without the knowledge base (`--no-knowledge`) and before/after a
 
 1. [Download UNISON.zip](https://softwareglitching.github.io/unison-site/downloads/UNISON.zip) and unzip it somewhere with space, e.g. `C:\UNISON` (avoid OneDrive-synced folders: the
    `node_modules` and `.venv` folders hold thousands of files).
-2. Double-click **`Setup.bat`**. It will:
-   - inspect your hardware (Windows version, CPU, RAM, GPU + VRAM, CUDA, disk, installed tools)
-     and write `docs\HARDWARE_REPORT.md`;
-   - offer to install anything missing — Python 3.12, Node.js LTS, Ollama — via `winget`
-     (it asks first);
-   - show three model configurations chosen for *your* hardware and let you pick one;
-   - download that model (one time; 1–19 GB depending on the tier);
-   - install the backend into `.venv`, build the web app;
-   - start UNISON and run a self-test that chats with the real model, writing the actual
-     replies to `docs\SELFTEST.md`.
-3. UNISON opens and asks for your **license key** — paste it on the activation screen.
-4. From then on, double-click **`Start-UNISON.bat`** (or the desktop shortcut setup offers).
-   Your browser opens at **http://127.0.0.1:8770**. Keep the black window open while you use it;
-   close it to stop UNISON.
+2. Double-click **`Setup.bat`**. The **UNISON Setup** window opens: paste your license key and
+   click **Install**. It then, showing each step as it goes:
+   - inspects your hardware (Windows version, CPU, RAM, GPU + VRAM, CUDA, disk, installed tools)
+     and writes `docs\HARDWARE_REPORT.md`;
+   - installs anything missing — Python 3.12, Node.js LTS, Ollama — via `winget`;
+   - picks the model recommended for *your* hardware and downloads it (one time; 1–19 GB);
+   - installs the backend into `.venv`, builds the app;
+   - runs a self-test that chats with the real model, writing the actual replies to `docs\SELFTEST.md`.
+   (Prefer the old text version, with a choice of model? Run `Setup.bat -Text`.)
+3. Click **Finish**. UNISON is added to the Start menu and your desktop, and opens in its own window.
+   From then on just open **UNISON** from the Start menu (or double-click `Start-UNISON.bat`).
+   There's no black console window: UNISON lives in the **tray by the clock**. Closing the window
+   keeps it ready in the tray; right-click the tray icon to **Quit**, turn on remote access, restart it,
+   or make it start with Windows.
 
 The first message after starting takes longer while the model loads into memory. After that,
 replies stream at whatever speed your hardware delivers — the real tokens/second is shown in the
@@ -275,6 +275,7 @@ the app write it). Environment overrides are listed in `.env.example`. The syste
 ```
 UNISON/
   Setup.bat, Update.bat, Start-UNISON.bat     double-click entry points
+  UNISON.exe                                 the Windows app (built from desktop\ during setup)
   backend/
     api/          FastAPI routes + request schemas
     core/         config, chat/agent service, hardware-aware model selection, system metrics

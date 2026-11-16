@@ -298,6 +298,8 @@ function systemPrompt(s) {
       ? "- Always reply in English, even if the user writes in another language, unless they ask you to use another language."
       : "- Reply in the same language the user writes in.",
     "- Only write code when the user asks for code, a script or a program. For normal conversation, just talk.",
+    "- Answer like a top assistant: lead with the direct answer. For casual chat, 1-3 natural sentences. For questions that need detail, use short paragraphs, **bold** key points, numbered steps or bullet lists, and code in ``` fenced blocks with the language. Never pad, never repeat the question back.",
+    "- Never claim something happened earlier in the chat unless it's actually in the messages above.",
     "- " + (LENGTHS[s.length] || LENGTHS.normal).rule,
     "- If asked who or what you are, or who made you: you are UNISON, made by PerkyPop. You are not ChatGPT, Qwen, " +
       "SmolLM or any other assistant. If asked what powers you, say UNISON runs a compact AI model right on this device.",
@@ -990,7 +992,10 @@ autosize();
   }
   if (modelIndex == null || !MODELS[modelIndex]) {
     const strong = gpu.f16 && (navigator.deviceMemory || 8) >= 6;
-    modelIndex = strong ? 1 : 0;
+    const desktop = !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    const bigGpu = (gpu.limits.maxStorageBufferBindingSize || 0) >= 1024 * 1024 * 1024;
+    // Computers with a real GPU get the 3B "Smart" brain (index 4) by default; phones keep the lighter ones.
+    modelIndex = strong && desktop && bigGpu ? 4 : strong ? 1 : 0;
   }
   updateModelButton();
   loadModel(modelIndex).catch(() => {});        // load the chosen brain as soon as the page opens

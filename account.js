@@ -1,6 +1,6 @@
 // UNISON website sign-in: a license key (checked against the owner's public signing key) or the owner password.
 // Shared storage with chat.html, so signing in on one page signs you in on the other.
-const LICENSE_PUBLIC_KEY = "ca0QGySY2IMmhMXY5_egV-vasWuIHsWEFK5mLQwfHkA";
+const LICENSE_PUBLIC_KEY = "mc7Q_9W7pA8dDLBe8HDKLB3-41oN2RyLSejmLKOa174";
 const OWNER_PASS = { salt: "j3uD2U08OioAVZODjxBodw==", hash: "YJft6M+bvrA8vg7dn28xIyHwMKX0X18VQ60KhfUH8mM=", iter: 310000 };
 const NOBLE = "https://cdn.jsdelivr.net/npm/@noble/ed25519@2.1.0/+esm";
 const PREFIX = "UNISON-";

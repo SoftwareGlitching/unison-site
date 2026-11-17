@@ -665,6 +665,7 @@ function chooseModel(i) {
 let source = store.get("source", "device");          // "device" = WebLLM here, "pc" = a UNISON PC's public link
 let pcUrl = store.get("pc_url", "");
 const pc = { token: null, exp: 0, abort: null, base: "" };
+var pcModel = "";   // the PC's brain, e.g. unison:latest (var: read by updateModelButton before this line runs)
 function normUrl(u) {
   u = String(u || "").trim();
   if (!u) return "";
@@ -689,11 +690,13 @@ async function connectPC() {
   try { h = await fetchT(base + "/v1/health", {}, 9000); }
   catch { throw new Error("Can't reach the UNISON PC. It must be on, awake, running UNISON, with the public link turned on (Enable-Remote.bat, option 2)."); }
   if (!h.ok) throw new Error(`The UNISON PC answered ${h.status}. Is that the right link?`);
+  try { const hj = await h.clone().json(); pcModel = hj.active_model || ""; } catch { pcModel = ""; }
   const r = await fetchT(base + "/v1/auth/key-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: license.key }) }, 15000);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error((j.error && j.error.message) || `The UNISON PC refused the key (${r.status}).`);
   pc.token = j.token; pc.exp = j.expires || 0; pc.base = base;
-  setStatus("ready · UNISON PC · full model", "ok");
+  updateModelButton();
+  setStatus(`ready · UNISON PC · ${pcModel || "full model"}`, "ok");
   sendBtn.disabled = false;
   return pcEngine;
 }
@@ -901,7 +904,7 @@ document.querySelectorAll("[data-close]").forEach((b) => (b.onclick = closeSheet
 $("modelBtn").onclick = () => openSheet("modelSheet");
 $("settingsBtn").onclick = () => openSheet("settingsSheet");
 
-function updateModelButton() { $("modelBtn").textContent = (source === "pc" ? "UNISON PC" : (MODELS[modelIndex]?.name || "Model")) + " ▾"; }
+function updateModelButton() { $("modelBtn").textContent = (source === "pc" ? "UNISON PC" + (pcModel ? " · " + pcModel : "") : (MODELS[modelIndex]?.name || "Model")) + " ▾"; }
 
 function drawModelList() {
   const list = $("modelList");

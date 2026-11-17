@@ -679,6 +679,7 @@ function chooseModel(i) {
 let source = store.get("source", "device");          // "device" = WebLLM here, "pc" = a UNISON PC's public link
 let pcUrl = store.get("pc_url", "");
 const pc = { token: null, exp: 0, abort: null, base: "" };
+var pcEffort = ""; // the PC's effort setting (eco/balanced/max); phone chats run with it too
 var pcModel = "";   // the PC's brain, e.g. unison:latest (var: read by updateModelButton before this line runs)
 function normUrl(u) {
   u = String(u || "").trim();
@@ -704,13 +705,14 @@ async function connectPC() {
   try { h = await fetchT(base + "/v1/health", {}, 9000); }
   catch { throw new Error("Can't reach the UNISON PC. It must be on, awake, running UNISON, with the public link turned on (Enable-Remote.bat, option 2)."); }
   if (!h.ok) throw new Error(`The UNISON PC answered ${h.status}. Is that the right link?`);
-  try { const hj = await h.clone().json(); pcModel = hj.active_model || ""; } catch { pcModel = ""; }
+  try { const hj = await h.clone().json(); pcModel = hj.active_model || ""; pcEffort = hj.effort || ""; } catch { pcModel = ""; pcEffort = ""; }
   const r = await fetchT(base + "/v1/auth/key-login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: license.key }) }, 15000);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error((j.error && j.error.message) || `The UNISON PC refused the key (${r.status}).`);
   pc.token = j.token; pc.exp = j.expires || 0; pc.base = base;
   updateModelButton();
-  setStatus(`ready · PC · ${pcModel || "full model"}`, "ok");
+  const eff = { eco: "Eco", balanced: "Balanced", max: "Max" }[pcEffort] || "";
+  setStatus(`ready · PC · ${pcModel || "full model"}${eff ? " · " + eff : ""}`, "ok");
   sendBtn.disabled = false;
   return pcEngine;
 }

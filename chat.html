@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark" />
 <meta name="theme-color" content="#0b0a1f" />
 <meta http-equiv="Cache-Control" content="no-cache" />
-<title>UNISON — chat</title>
+<title>UNISON Code — chat</title>
 <meta name="description" content="Chat with UNISON, a private AI that runs entirely inside your browser. No account, nothing sent to a server." />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0a1f'/%3E%3Ccircle cx='12' cy='16' r='7' fill='none' stroke='%239b87ff' stroke-width='2.4'/%3E%3Ccircle cx='20' cy='16' r='7' fill='none' stroke='%234de3ff' stroke-width='2.4'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -61,6 +61,7 @@
   .card { border:1px solid var(--line2); background:var(--panel); border-radius:12px; padding:12px 14px; font-size:13.5px; }
   .card.warn { border-color:rgba(255,200,107,.45); background:rgba(255,200,107,.07); color:#ecd5ab; }
   .card.bad { border-color:rgba(255,118,118,.45); background:rgba(255,118,118,.07); color:#f3c4c4; }
+  .card.sources { font-size:12.5px; padding:8px 12px; } .card.sources a { color:var(--accent); }
   .card .row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
   .loadcard .big { font:600 15px var(--sans); color:var(--text); }
   .loadcard .meter { height:6px; background:var(--line); border-radius:6px; overflow:hidden; margin:10px 0 6px; }
@@ -81,6 +82,7 @@
   .body code { font-family:var(--mono); background:var(--panel2); border:1px solid var(--line); border-radius:4px; padding:.05em .35em; font-size:.88em; }
   .code { margin:.6em 0; border:1px solid var(--line2); border-radius:10px; overflow:hidden; background:#080a0c; }
   .code .top { display:flex; justify-content:space-between; align-items:center; padding:4px 10px; background:var(--panel); border-bottom:1px solid var(--line); font:11px var(--mono); color:var(--dim); }
+  .code .top .acts { display:flex; gap:6px; }
   .code .top button { background:none; border:1px solid var(--line2); border-radius:6px; padding:2px 9px; font:11px var(--mono); color:var(--dim); }
   .code pre { margin:0; padding:11px 12px; overflow-x:auto; font:12.5px/1.55 var(--mono); }
   .code pre code { background:none; border:0; padding:0; }
@@ -185,7 +187,7 @@
   <div id="modelList"></div>
   <p class="hint">Each brain downloads once and is then stored on this device. Bigger = smarter but slower and needs a newer phone.</p>
   <h3>On a UNISON PC</h3>
-  <button class="opt" id="pcOpt"><div><b>UNISON PC</b><span>The full model on a PC running UNISON · works on any phone</span></div><span class="tag" id="pcTag"></span></button>
+  <button class="opt" id="pcOpt"><div><b>UNISON PC</b><span>Best answers: your PC's full Gemma 4 brain, with web search · works on any phone</span></div><span class="tag" id="pcTag"></span></button>
   <div id="pcBox" class="hidden">
     <input class="field" id="pcUrl" placeholder="https://your-pc.tail1234.ts.net" autocapitalize="off" autocomplete="off" spellcheck="false" inputmode="url" />
     <div class="btnrow"><button class="btn primary" id="pcConnect">Connect</button></div>
@@ -259,8 +261,12 @@ const MODELS = [
   { name: "Fast", blurb: "Quick answers · works on phones and most computers", size: "~1 GB",
     cands: ["Qwen3-1.7B-{q}-MLC", "Qwen2.5-1.5B-Instruct-{q}-MLC", "Llama-3.2-1B-Instruct-{q}-MLC",
             "Qwen3-0.6B-{q}-MLC", "Qwen2.5-0.5B-Instruct-{q}-MLC"] },   // last two: only if the device can't run the others
-  { name: "Smart", blurb: "Much better answers · computers and newest phones", size: "~2.5 GB",
-    cands: ["Qwen3-4B-{q}-MLC", "Qwen2.5-3B-Instruct-{q}-MLC", "Llama-3.2-3B-Instruct-{q}-MLC", "Qwen3-1.7B-{q}-MLC"] },
+  { name: "Smart", blurb: "Google Gemma - better chat and code · computers and big phones", size: "~1.6 GB",
+    cands: ["gemma-2-2b-it-{q}-MLC", "Phi-3.5-mini-instruct-{q}-MLC", "Qwen3-4B-{q}-MLC", "Llama-3.2-3B-Instruct-{q}-MLC"] },
+  { name: "Pro", blurb: "Best for coding in the browser · computers with a strong graphics card (8 GB+)", size: "~5 GB",
+    desktopOnly: true,
+    cands: ["Qwen2.5-Coder-7B-Instruct-{q}-MLC", "Llama-3.1-8B-Instruct-{q}-MLC", "Qwen2.5-7B-Instruct-{q}-MLC",
+            "gemma-2-9b-it-{q}-MLC", "Qwen3-8B-{q}-MLC"] },
 ];
 const FALLBACK = MODELS[0].cands;
 
@@ -358,7 +364,7 @@ function render(md, streaming) {
       const nl = part.indexOf("\n");
       const lang = nl >= 0 ? part.slice(0, nl).trim() : "";
       const code = nl >= 0 ? part.slice(nl + 1) : part;
-      out.push(`<div class="code"><div class="top"><span>${esc(lang || "code")}</span><button data-copy>copy</button></div><pre><code>${esc(code.replace(/\n$/, ""))}</code></pre></div>`);
+      out.push(`<div class="code"><div class="top"><span>${esc(lang || "code")}</span><span class="acts"><button data-save data-lang="${esc(lang || "")}">save file</button><button data-copy>copy</button></span></div><pre><code>${esc(code.replace(/\n$/, ""))}</code></pre></div>`);
       return;
     }
     let list = null;
@@ -447,7 +453,24 @@ function drawThread() {
   for (const m of history) msgEl(m.role, m.content);
 }
 
+const FILE_NAMES = { html: "index.html", css: "style.css", js: "script.js", javascript: "script.js", ts: "script.ts",
+  json: "data.json", py: "main.py", python: "main.py", lua: "main.lua", luau: "script.luau", cs: "Program.cs",
+  csharp: "Program.cs", cpp: "main.cpp", "c++": "main.cpp", c: "main.c", java: "Main.java", sh: "script.sh",
+  bash: "script.sh", ps1: "script.ps1", powershell: "script.ps1", bat: "run.bat", sql: "query.sql", md: "README.md" };
+function fileNameFor(lang, text) {
+  const first = text.split("\n", 3).join("\n");
+  const m = /(?:^|[\s(<!\-#/*'"])([\w.-]+\.(?:html?|css|js|ts|json|py|lua|luau|cs|cpp|hpp|h|c|java|sh|ps1|bat|sql|md|txt))\b/i.exec(first);
+  return m ? m[1] : (FILE_NAMES[(lang || "").toLowerCase()] || "code.txt");
+}
 thread.addEventListener("click", async (e) => {
+  const save = e.target.closest("[data-save]");
+  if (save) {   // download the code block as a real file (index.html, style.css, main.py...)
+    const text = save.closest(".code").querySelector("code").innerText;
+    const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: fileNameFor(save.dataset.lang, text) });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return;
+  }
   const btn = e.target.closest("[data-copy]");
   if (!btn) return;
   try { await navigator.clipboard.writeText(btn.closest(".code").querySelector("code").innerText); btn.textContent = "copied"; setTimeout(() => (btn.textContent = "copy"), 1200); } catch {}
@@ -613,8 +636,21 @@ function loadModel(index) {
       try { cached = typeof webllm.hasModelInCache === "function" && await webllm.hasModelInCache(id); } catch {}
       const lc = showLoadCard(cached ? `Loading ${model.name}…` : `Downloading ${model.name} (${model.size}) — one time only`);
       setStatus(`${cached ? "loading" : "downloading"} ${model.name}…`, "busy");
+      let lastTick = Date.now(), lastPct = -1, stuckShown = false;
+      const watchdog = setInterval(() => {      // a download that stops moving: offer a way out instead of waiting forever
+        if (myToken !== loadToken || !loadCardEl) { clearInterval(watchdog); return; }
+        if (!stuckShown && Date.now() - lastTick > 90000) {
+          stuckShown = true;
+          const c = card(`<b>${esc(model.name)} isn't making progress.</b> This device may not have enough memory or the connection stalled.` +
+            `<div class="row">${index !== 0 ? '<button class="btn primary" data-fast>Use Fast instead</button>' : ""}<button class="btn" data-wait>Keep waiting</button></div>`, "warn");
+          c.querySelector("[data-fast]")?.addEventListener("click", () => { c.remove(); clearInterval(watchdog); markBad(id); chooseModel(0); });
+          c.querySelector("[data-wait]").onclick = () => { c.remove(); lastTick = Date.now(); stuckShown = false; };
+        }
+      }, 5000);
       const progress = (r) => {
         if (myToken !== loadToken) return;
+        const p0 = Math.round((r.progress || 0) * 1000);
+        if (p0 !== lastPct) { lastPct = p0; lastTick = Date.now(); }
         const pct = Math.round((r.progress || 0) * 100);
         bar.style.width = pct + "%";
         lc.querySelector(".meter i").style.width = pct + "%";
@@ -622,14 +658,21 @@ function loadModel(index) {
         lc.querySelector(".sub").textContent = `${pct}%${mb ? " · " + mb[1] + " MB" : ""}${cached ? "" : " · keep this page open"}`;
         setStatus(`${cached ? "loading" : "downloading"} ${model.name} · ${pct}%`, "busy");
       };
+      // If the phone runs out of memory, the browser kills the page mid-load (it "resets"). Remember what we
+      // were loading so the next visit skips it instead of crashing again and again.
+      store.set("loading_attempt", { id, index, t: Date.now() });
       try {
         const e = await webllm.CreateMLCEngine(id, { initProgressCallback: progress });
+        clearInterval(watchdog);
+        store.set("loading_attempt", null);
         if (myToken !== loadToken) { try { await e.unload(); } catch {} return null; }
         engine = e; loadedId = id; lastError = "";
         hideLoadCard(); bar.style.width = "0";
         setReady(model, id !== ids[0]);
         return engine;
       } catch (err) {
+        clearInterval(watchdog);
+        store.set("loading_attempt", null);
         lastErr = err; lastError = `${id}: ${err && err.message || err}`;
         console.warn("load failed", id, err);
         markBad(id);
@@ -665,7 +708,10 @@ async function ensureEngine() {
   return await loadModel(modelIndex);
 }
 
+const IS_PHONE = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
 function chooseModel(i) {
+  if (i === 2 && IS_PHONE) { closeSheets(); card("<b>Pro</b> is too big for a phone. For the full UNISON brain on your phone, connect to your <b>UNISON PC</b> (Choose brain → UNISON PC).", "warn"); return; }
+  if (i === 1 && IS_PHONE && !confirm("Smart needs about 2 GB of memory. Older phones may close the page while it loads. Try anyway? (For the best answers on a phone, connect to your UNISON PC.)")) return;
   if (busy) stopGenerating();
   if (source !== "device") useSource("device");
   if (!gpu.ok) { closeSheets(); card("This browser can't run a brain on the device (no WebGPU). Use <b>UNISON PC</b> instead.", "bad"); return; }
@@ -774,6 +820,32 @@ function pcErrorCard(msg) {
   c.querySelector("[data-dev]").onclick = () => { c.remove(); chooseModel(modelIndex ?? 0); };
 }
 
+// ---------------------------------------------------------------- web research (brains on this device)
+// Websites can't search Google/DuckDuckGo directly, but Wikipedia allows it - so on-device brains look things up
+// there when you ask ("search...", "look up...", "latest..."). Connected to a UNISON PC, the PC searches the whole web.
+const RESEARCH_RE = /\b(search|look (it |this |that )?up|google|research|on the (web|internet)|online|find (me )?(info|information|out)|latest|news|current(ly)?|today|this (week|year)|recent(ly)?|who (won|is the)|history of|20(2[5-9]|3\d))\b/i;
+async function wikiResearch(q) {
+  q = q.replace(/^(please |pls |can you |could you )?(search|google|look up|research)( the (web|internet))?( for)?\s*/i, "").slice(0, 200);
+  const api = "https://en.wikipedia.org/w/api.php?origin=*&format=json";
+  const sr = await (await fetch(`${api}&action=query&list=search&srlimit=3&srsearch=${encodeURIComponent(q)}`)).json();
+  const hits = sr?.query?.search || [];
+  if (!hits.length) return null;
+  const titles = hits.map((h) => h.title).join("|");
+  const ex = await (await fetch(`${api}&action=query&prop=extracts&exintro=1&explaintext=1&exchars=1200&titles=${encodeURIComponent(titles)}`)).json();
+  const pages = Object.values(ex?.query?.pages || {});
+  const sources = hits.map((h, i) => {
+    const pg = pages.find((p) => p.title === h.title);
+    return { n: i + 1, title: h.title, url: "https://en.wikipedia.org/wiki/" + encodeURIComponent(h.title.replace(/ /g, "_")),
+             text: (pg?.extract || h.snippet.replace(/<[^>]+>/g, "")).slice(0, 1200) };
+  });
+  return sources;
+}
+function sourcesCard(sources) {
+  const c = card(`<span class="dim">looked up:</span> ` + sources.map((x) =>
+    `<a href="${esc(x.url)}" target="_blank" rel="noopener">[${x.n}] ${esc(x.title)}</a>`).join(" · "), "sources");
+  return c;
+}
+
 // ---------------------------------------------------------------- chat
 let busy = false, stopRequested = false;
 const genFails = {};
@@ -786,6 +858,18 @@ async function generate(el) {
   const userIsCJK = countCJK(lastUser) > 0;
   const L = LENGTHS[settings.length] || LENGTHS.normal;
   let nudge = false;
+  let webNote = "";
+  if (source !== "pc" && settings.web !== false && RESEARCH_RE.test(lastUser)) {
+    body.innerHTML = '<span class="thinking">searching…</span>';
+    try {
+      const src = await wikiResearch(lastUser);
+      if (src) {
+        thread.insertBefore(sourcesCard(src), el);
+        webNote = "\n\nFresh results looked up just now (answer from these, cite like [1], say if they don't cover it):\n" +
+          src.map((x) => `[${x.n}] ${x.title}: ${x.text}`).join("\n\n");
+      }
+    } catch (e) { console.warn("research failed", e); }
+  }
 
   for (let attempt = 0; attempt < 3; attempt++) {
     let eng, engErr = "";
@@ -795,7 +879,7 @@ async function generate(el) {
       body.innerHTML = '<span class="thinking">couldn\'t load the brain — see the message above</span>'; return null;
     }
     const ex = (EXAMPLES[settings.persona] || EXAMPLES.funny).flatMap(([u, a]) => [{ role: "user", content: u }, { role: "assistant", content: a }]);
-    const messages = [{ role: "system", content: systemPrompt(settings) }, ...ex, ...history.slice(-12),
+    const messages = [{ role: "system", content: systemPrompt(settings) + webNote }, ...ex, ...history.slice(-12),
       ...(nudge ? [{ role: "system", content: "Reply in English only." }] : [])];
     // Qwen3 "thinks" silently before answering unless told not to - slow on a phone. /no_think turns it off.
     if (source !== "pc" && /^Qwen3-/.test(loadedId || "")) {
@@ -939,7 +1023,9 @@ function drawModelList() {
     const on = source === "device" && i === modelIndex;
     b.className = "opt" + (on ? " on" : "");
     const tag = on ? (engine && !loading ? "loaded ✓" : "loading…") : (!gpu.ok ? "needs WebGPU" : "");
-    b.innerHTML = `<div><b>${m.name}</b><span>${m.blurb} · ${m.size}</span></div><span class="tag">${tag}</span>`;
+    const off = m.desktopOnly && IS_PHONE;
+    b.innerHTML = `<div><b>${m.name}</b><span>${m.blurb} · ${m.size}</span></div><span class="tag">${off ? "computers only" : tag}</span>`;
+    if (off) b.style.opacity = ".55";
     b.onclick = () => chooseModel(i);
     list.appendChild(b);
   });
@@ -1026,6 +1112,14 @@ autosize();
          '<div class="row"><button class="btn primary" data-pc>Connect to a UNISON PC</button></div>', "bad");
     c.querySelector("[data-pc]").onclick = () => openSheet("modelSheet");
     return;
+  }
+  const crashed = store.get("loading_attempt", null);
+  if (crashed && crashed.id) {
+    store.set("loading_attempt", null);
+    markBad(crashed.id);
+    if (crashed.index >= 1) { modelIndex = 0; store.set("model_v2", 0); }
+    card(`<b>That brain was too big for this device</b> — the browser closed the page while loading it. ` +
+         `UNISON switched to <b>Fast</b>. For the full brain on a phone, connect to your <b>UNISON PC</b> (Choose brain → UNISON PC).`, "warn");
   }
   if (modelIndex == null || !MODELS[modelIndex]) {
     const strong = gpu.f16 && (navigator.deviceMemory || 8) >= 6;
